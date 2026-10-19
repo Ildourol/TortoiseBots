@@ -71,7 +71,7 @@ bool BroadcastHelper::BroadcastTest(
 */
 bool BroadcastHelper::BroadcastToChannelWithGlobalChance(PlayerbotAI* ai, std::string message, std::list<std::pair<ToChannel, uint32>> toChannels)
 {
-    if (message.empty())
+    if (!sPlayerbotAIConfig.enableBroadcasts || message.empty())
     {
         return false;
     }
@@ -711,6 +711,9 @@ bool BroadcastHelper::BroadcastGuildMemberPromotion(
     Player* player
 )
 {
+    if (!sPlayerbotAIConfig.enableBroadcasts)
+        return false;
+
     if (urand(1, sPlayerbotAIConfig.broadcastChanceMaxValue) <= sPlayerbotAIConfig.broadcastChanceGuildManagement)
     {
         std::map<std::string, std::string> placeholders;
@@ -731,6 +734,9 @@ bool BroadcastHelper::BroadcastGuildMemberDemotion(
     Player* player
 )
 {
+    if (!sPlayerbotAIConfig.enableBroadcasts)
+        return false;
+
     if (urand(1, sPlayerbotAIConfig.broadcastChanceMaxValue) <= sPlayerbotAIConfig.broadcastChanceGuildManagement)
     {
         std::map<std::string, std::string> placeholders;
@@ -753,6 +759,9 @@ bool BroadcastHelper::BroadcastGuildGroupOrRaidInvite(
     Guild* guild
 )
 {
+    if (!sPlayerbotAIConfig.enableBroadcasts)
+        return false;
+
     std::map<std::string, std::string> placeholders;
     placeholders["%name"] = player->GetName();
     AreaTableEntry const* current_area = ai->GetCurrentArea();

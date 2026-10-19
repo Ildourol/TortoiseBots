@@ -88,7 +88,8 @@ bool PetitionSignAction::Execute(Event& event)
         WorldPacket data(CMSG_PETITION_SIGN, 20);
         data << petitionGuid << unk;
         bot->GetSession()->HandlePetitionSignOpcode(data);
-        bot->Say("Thanks for the invite!", LANG_UNIVERSAL);
+        if (sPlayerbotAIConfig.enableBroadcasts)
+            bot->Say("Thanks for the invite!", LANG_UNIVERSAL);
         sLog.outDetail("Bot #%d <%s> accepts guild invite", bot->GetGUIDLow(), bot->GetName());
         return true;
     }

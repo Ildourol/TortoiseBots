@@ -4499,7 +4499,7 @@ ChatChannelSource PlayerbotAI::GetChatChannelSource(Player* bot, uint32 type, st
 
 bool PlayerbotAI::SayToGuild(std::string msg, bool likePlayer)
 {
-    if (msg.empty())
+    if (!sPlayerbotAIConfig.enableBroadcasts || msg.empty())
     {
         return false;
     }
@@ -4553,6 +4553,7 @@ bool PlayerbotAI::SayToGuild(std::string msg, bool likePlayer)
 
 static bool SayToNamedChannel(Player* bot, std::string const& name, std::string const& msg)
 {
+    if (!sPlayerbotAIConfig.enableBroadcasts) return false;
     if (!bot || msg.empty()) return false;
     ChannelMgr* mgr = channelMgr(bot->GetTeam());
     Channel* channel = mgr ? mgr->GetOrCreateChannel(name) : nullptr;
@@ -4636,7 +4637,7 @@ bool PlayerbotAI::SayToRaid(std::string msg)
 
 bool PlayerbotAI::Yell(std::string msg, bool likePlayer)
 {
-    if (msg.empty())
+    if (!sPlayerbotAIConfig.enableBroadcasts || msg.empty())
         return false;
 
     SanitizeCommandLikeChat(msg);
@@ -4675,7 +4676,7 @@ bool PlayerbotAI::Yell(std::string msg, bool likePlayer)
 
 bool PlayerbotAI::Say(std::string msg, bool likePlayer)
 {
-    if (msg.empty())
+    if (!sPlayerbotAIConfig.enableBroadcasts || msg.empty())
         return false;
 
     SanitizeCommandLikeChat(msg);
@@ -4775,7 +4776,7 @@ bool PlayerbotAI::TellPlayerNoFacing(Player* player, std::string text, Playerbot
         if (type == CHAT_MSG_SYSTEM && HasRealPlayerMaster())
             type = CHAT_MSG_WHISPER;
 
-        if (type == CHAT_MSG_SYSTEM && (sPlayerbotAIConfig.randomBotSayWithoutMaster || HasStrategy("debug", BotState::BOT_STATE_NON_COMBAT)))
+        if (type == CHAT_MSG_SYSTEM && sPlayerbotAIConfig.enableBroadcasts && (sPlayerbotAIConfig.randomBotSayWithoutMaster || HasStrategy("debug", BotState::BOT_STATE_NON_COMBAT)))
             type = CHAT_MSG_SAY;
 
         if (type == CHAT_MSG_SYSTEM && isRealPlayer_Helper(player))
@@ -4818,6 +4819,8 @@ bool PlayerbotAI::TellPlayerNoFacing(Player* player, std::string text, Playerbot
         {
             case CHAT_MSG_SAY:
             {
+                if (!sPlayerbotAIConfig.enableBroadcasts)
+                    return false;
                 bot->Say(text, (bot->GetTeam() == ALLIANCE ? LANG_COMMON : LANG_ORCISH));
                 return true;
             }

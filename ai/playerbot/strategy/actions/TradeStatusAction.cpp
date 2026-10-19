@@ -293,7 +293,7 @@ bool TradeStatusAction::CheckTrade()
             {
                 ai->TellPlayerNoFacing(trader, "Thank you " + name + ".", PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false);
             }
-            else
+            else if (sPlayerbotAIConfig.enableBroadcasts)
             {
                 bot->Say("Thank you " + name + ".", (bot->GetTeam() == ALLIANCE ? LANG_COMMON : LANG_ORCISH));
             }

@@ -28,6 +28,9 @@ SayAction::SayAction(PlayerbotAI* ai) : Action(ai, "say"), Qualified()
 
 bool SayAction::Execute(Event& event)
 {
+    if (!sPlayerbotAIConfig.enableBroadcasts)
+        return false;
+
     std::string text = "";
     std::map<std::string, std::string> placeholders;
     Unit* target = AI_VALUE(Unit*, "tank target");
@@ -112,6 +115,9 @@ bool SayAction::Execute(Event& event)
 
 bool SayAction::isUseful()
 {
+    if (!sPlayerbotAIConfig.enableBroadcasts)
+        return false;
+
     if (!ai->AllowActivity())
         return false;
 
@@ -486,6 +492,11 @@ void ChatReplyAction::ChatReplyDo(Player* bot, uint32 type, uint32 guid1, uint32
     }
 
     ChatChannelSource chatChannelSource = PlayerbotAIStorage::Instance().GetAI(bot)->GetChatChannelSource(bot, type, chanName);
+
+    if (!sPlayerbotAIConfig.enableBroadcasts && chatChannelSource != ChatChannelSource::SRC_WHISPER && chatChannelSource != ChatChannelSource::SRC_PARTY && chatChannelSource != ChatChannelSource::SRC_RAID)
+    {
+        return;
+    }
 
     if ((istarts_with(msg, "LFG") || istarts_with(msg, "LFM"))
         && HandleLFGQuestsReply(bot, chatChannelSource, msg, name))

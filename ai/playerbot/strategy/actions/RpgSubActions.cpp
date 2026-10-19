@@ -404,7 +404,7 @@ bool RpgAIChatAction::SpeakLine()
     {
         if (type == CHAT_MSG_EMOTE)
             bot->TextEmote(message.c_str());
-        else
+        else if (sPlayerbotAIConfig.enableBroadcasts)
             bot->Say(message.c_str(), lang);
         message = bot->GetName() + std::string(": ") + message;
     }
@@ -672,7 +672,7 @@ void RpgAIChatAction::ManualChat(GuidPosition target, const std::string& line)
 
         if (line.find("*") == 0)
             bot->TextEmote(line);
-        else
+        else if (sPlayerbotAIConfig.enableBroadcasts)
             bot->Say(line, LANG_UNIVERSAL);
 
         llmContext += std::string(" ") + bot->GetName() + std::string(":") + line;
@@ -764,7 +764,7 @@ bool RpgTradeUsefulAction::Execute(Event& event)
             {
                 if (bot->GetGroup() && bot->GetGroup()->IsMember(guidP))
                     ai->TellPlayerNoFacing(GetMaster(), "You can use this " + chat->formatItem(item) + " better than me, " + player->GetName() + ".", PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false);
-                else
+                else if (sPlayerbotAIConfig.enableBroadcasts)
                     bot->Say("You can use this " + chat->formatItem(item) + " better than me, " + player->GetName() + ".", (bot->GetTeam() == ALLIANCE ? LANG_COMMON : LANG_ORCISH));
             }
 
@@ -863,7 +863,7 @@ bool RpgEnchantAction::Execute(Event& event)
                     {
                         if (bot->GetGroup() && bot->GetGroup()->IsMember(guidP))
                             ai->TellPlayerNoFacing(GetMaster(), "Let me enchant this " + chat->formatItem(item) + " with " + chat->formatSpell(spellId) + " for you " + player->GetName() + ".", PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false);
-                        else
+                        else if (sPlayerbotAIConfig.enableBroadcasts)
                             bot->Say("Let me enchant this " + chat->formatItem(item) + " with " + chat->formatSpell(spellId) + " for you " + player->GetName() + ".", (bot->GetTeam() == ALLIANCE ? LANG_COMMON : LANG_ORCISH));
                     }
 

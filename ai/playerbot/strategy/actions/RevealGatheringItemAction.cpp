@@ -32,6 +32,9 @@ private:
 
 bool RevealGatheringItemAction::Execute(Event& event)
 {
+    if (!sPlayerbotAIConfig.enableBroadcasts)
+        return false;
+
     if (!bot->GetGroup())
         return false;
 

@@ -882,7 +882,7 @@ bool PlayerbotAIConfig::Initialize()
     //broadcastChanceMaxValue is used in urand(1, broadcastChanceMaxValue) for broadcasts,
     //lowering it will increase the chance, setting it to 0 will disable broadcasts
     //for internal use, not intended to be change by the user
-    broadcastChanceMaxValue = enableBroadcasts ? 30000 : 0;
+    broadcastChanceMaxValue = enableBroadcasts ? 30000 : 1;
 
     //all broadcast chances should be in range 1-broadcastChanceMaxValue, value of 0 will disable this particular broadcast
     //setting value to max does not guarantee the broadcast, as there are some internal randoms as well
