@@ -2103,6 +2103,24 @@ class DungeonPlanSql(unittest.TestCase):
         self.assertNotIn("91917", entries, "Corpsemuncher is the leg's boss, not a pull")
         boss6 = [r for r in rows if r["entry"] == "91917"]
         self.assertEqual([(r["leg"], r["kind"]) for r in boss6], [("6", "boss")])
+        # Leg 6's climb: the walk ends on the shaft floor F1, one swim row up to open water S1, then the `to` D1 on the
+        # north ramp's first dry polygon (RUN-LESSONS "kc corpsemuncher probe", 2026-10-28: Q1 F1->S1 and Q2 S1->D1 PASS).
+        # The swim is a single row: under the exporter's 60 yd move-gap cut, so the run leader sends it as one `cmd move`.
+        leg6moves = [r for r in leg_steps(rows, 6) if r["kind"] == "move"]
+        f1 = [r for r in leg6moves
+              if math.dist([float(r[c]) for c in ("x", "y", "z")], [-11211.0, -1522.0, -45.9]) < 0.3]
+        s1 = [r for r in leg6moves
+              if math.dist([float(r[c]) for c in ("x", "y", "z")], [-11211.0, -1516.0, -3.0]) < 0.3]
+        self.assertEqual(len(f1), 1, "one move row on the shaft floor F1")
+        self.assertEqual(len(s1), 1, "one swim row up to open water S1")
+        self.assertEqual([f1[0]["comment"], s1[0]["comment"]], ["via", "via"])
+        self.assertEqual(int(s1[0]["seq"]) - int(f1[0]["seq"]), 1, "the swim leaves from F1")
+        d1to = [r for r in leg6moves if r["comment"] == "to" and
+                math.dist([float(r[c]) for c in ("x", "y", "z")], [-11211.0, -1492.0, 3.6]) < 0.3]
+        self.assertEqual(len(d1to), 1, "the `to` D1 on the north ramp's first dry polygon")
+        self.assertEqual(int(d1to[0]["seq"]) - int(s1[0]["seq"]), 1, "D1 comes right after the swim")
+        self.assertLess(math.dist([float(f1[0][c]) for c in ("x", "y", "z")],
+                                  [float(s1[0][c]) for c in ("x", "y", "z")]), 60.0, "one cmd move row")
         # the south wing (x -11270..-11170, y -1485..-1395) holds leg 6's rows only
         wing = [r for r in rows if -11270 <= float(r["x"]) <= -11170 and -1485 <= float(r["y"]) <= -1395]
         self.assertTrue(wing, "Corpsemuncher's wing has rows now")
