@@ -54,6 +54,7 @@
 - New: bots interrupt the Wailing Caverns lords, Mutanus, Grimlok and Captain Greenskin.
 - Fixed: a hired mercenary in your party now accepts the LFT dungeon offer, so the group forms (#1284).
 - Fixed: Karazhan Crypt's run leader plan clears Corpsemuncher (leg 6, a swim up the shaft).
+- New: Wailing Caverns' run leader plan fights Kresh on his own leg; a boss row's `timeout_s` sets how long the party waits for a boss away from his spot (default 60 s).
 - Fixed `cmd move` lifting a point in open water onto a ledge above the surface that no path reaches: the point stays in the water (a pier the bots can walk onto still wins), so the run leader's swim up Karazhan Crypt's shaft no longer pauses.
 - Fixed the test speed's party hold pausing a run when `cmd move` refused the hold on the lead bot's own spot (a swim under a ledge): the walk goes on.
 
