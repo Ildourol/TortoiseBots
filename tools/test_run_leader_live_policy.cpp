@@ -80,28 +80,56 @@ static void TestFloorSnap()
 // (-11205 -1514.5 -0.5) lies in open water 3.5 yd under the shaft's WMO water surface (3.0), the shaft
 // floor 46 yd below it (nothing in the below band) and a model surface at 5.2 within kFloorSnapRange above
 // it. `cmd move` lifted the point onto that surface ("Move point snapped to the floor: -11205.0 -1514.5
-// 5.2", 4 times). From the lead floating at -11209 -1522.5 -26.5 the core then answered 0x11 for a dry end,
-// the swim hand-off's 0x11 line needs the end in water, so the lead's own move failed and the run paused
-// ("stuck 27.5 yd ... cmd move path type 0x11"); from S1 the same point was refused off-mesh. A point in
-// water is never lifted out of the water: it keeps its z, so the move is a water-to-water swim line.
+// 5.2", 4 times). From the lead floating at -11209 -1522.5 -26.5 the core then answered 0x11 for the dry
+// end, the swim hand-off's 0x11 line needs the end in water, so the lead's own move failed and the run
+// paused ("stuck 27.5 yd ... cmd move path type 0x11"); from S1 the same point was refused off-mesh
+// ("the path ends more than 5 yd from it"). Reachability decides (Codex review of 3ad0950d: a pier over
+// the water looks the same by height and liquid): the water point keeps its z only when the raised point
+// has no usable path and the water point is swimmable.
 static void TestFloorSnapKeepsAWaterPointInTheWater()
 {
     using namespace RemoteCommander;
     float const level = 3.0f;
     float const s2x = -11205.0f, s2y = -1514.5f, s2z = -0.5f;
-    // The live numbers: the floor far below (or none in reach), the surface above out of the water.
-    CHECK(ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, true, level) == s2z);
-    CHECK(ChooseFloorZ(s2z, 0.0f, false, 5.2f, true, true, level) == s2z);
-    // Not in water, or no water fact (every other caller): the old snap onto the surface above.
-    CHECK(ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, false, level) == 5.2f);
+    // The rare case is asked only for a water point the search from above would lift out of the water.
+    CHECK(WaterSnapAsksPath(s2z, -45.9f, true, 5.2f, true, true, level));
+    CHECK(WaterSnapAsksPath(s2z, 0.0f, false, 5.2f, true, true, level));
+    CHECK(!WaterSnapAsksPath(s2z, -45.9f, true, 5.2f, true, false, level));   // not in water
+    CHECK(!WaterSnapAsksPath(s2z, -3.0f, true, 5.2f, true, true, level));     // a floor in the below band
+    CHECK(!WaterSnapAsksPath(s2z, 0.0f, false, 1.0f, true, true, level));     // a ledge under the surface
+    CHECK(!WaterSnapAsksPath(s2z, 0.0f, false, level, true, true, level));    // exactly at the surface
+    CHECK(!WaterSnapAsksPath(s2z, 0.0f, false, 6.0f, true, true, level));     // beyond kFloorSnapRange
+    CHECK(!WaterSnapAsksPath(s2z, 0.0f, false, 0.0f, false, true, level));    // nothing found above
+    // The reachability fact: the live answers for the raised S2 (0x11 from mid-water; a path ending
+    // more than 5 yd off it from S1) are unusable; a complete path onto it, an incomplete (length-capped)
+    // one, or the lead bot already on it are usable; NOPATH is not.
+    CHECK(!RaisedFloorPathUsable(0x11, 0.0f, false));
+    CHECK(!RaisedFloorPathUsable(0x01, 6.6f, false));
+    CHECK(!RaisedFloorPathUsable(kPathNoPath, 0.0f, false));
+    CHECK(RaisedFloorPathUsable(0x01, 0.4f, false));
+    CHECK(RaisedFloorPathUsable(0x01, kMaxMoveEndOffset, false));
+    CHECK(RaisedFloorPathUsable(kPathIncomplete, 30.0f, false));
+    CHECK(RaisedFloorPathUsable(kPathNoPath, 0.0f, true));
+
+    // S2: the raised point unreachable, the water point swimmable -> the water point.
+    CHECK(ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, true, level, true, false) == s2z);
+    CHECK(ChooseFloorZ(s2z, 0.0f, false, 5.2f, true, true, level, true, false) == s2z);
+    // A pier: a point 1.5 yd under a deck at 4.0 over water at 3.0, the lead bot has a path onto the deck
+    // -> the deck, as before.
+    CHECK(ChooseFloorZ(2.5f, 0.0f, false, 4.0f, true, true, level, true, true) == 4.0f);
+    // Neither usable (the raised point unreachable, the water point too shallow to swim) -> the old rule.
+    CHECK(ChooseFloorZ(2.5f, 0.0f, false, 4.0f, true, true, level, false, false) == 4.0f);
+    // Not in water, or no water facts (every other caller): the old snap onto the surface above.
+    CHECK(ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, false, level, true, false) == 5.2f);
     CHECK(ChooseFloorZ(s2z, -45.9f, true, 5.2f, true) == 5.2f);
+    CHECK(ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, true, level) == 5.2f); // reachability not asked: old rule
     // A ledge above the point but still under the surface: snapped as before (it stays in the water).
-    CHECK(ChooseFloorZ(s2z, 0.0f, false, 1.0f, true, true, level) == 1.0f);
-    CHECK(ChooseFloorZ(s2z, 0.0f, false, level, true, true, level) == level);
+    CHECK(ChooseFloorZ(s2z, 0.0f, false, 1.0f, true, true, level, true, false) == 1.0f);
+    CHECK(ChooseFloorZ(s2z, 0.0f, false, level, true, true, level, true, false) == level);
     // A floor in the below band (a lake bed under the point) wins first, in water or not.
-    CHECK(ChooseFloorZ(s2z, -3.0f, true, 5.2f, true, true, level) == -3.0f);
+    CHECK(ChooseFloorZ(s2z, -3.0f, true, 5.2f, true, true, level, true, false) == -3.0f);
     // Nothing found: the point keeps its z.
-    CHECK(ChooseFloorZ(s2z, 0.0f, false, 0.0f, false, true, level) == s2z);
+    CHECK(ChooseFloorZ(s2z, 0.0f, false, 0.0f, false, true, level, true, false) == s2z);
 
     // The move the lead can then execute: from its logged spots in the shaft (kc316 12:29:04 "stranded at
     // -11209.0 -1522.5 -26.5", the shaft floor F1, S1, and deep in the shaft's south half) the end is in water
@@ -115,7 +143,8 @@ static void TestFloorSnapKeepsAWaterPointInTheWater()
     for (Spot const& p : spots)
         for (std::uint32_t const type : types)
         {
-            float const endZ = ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, true, level);
+            float const endZ = ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, true, level, true,
+                RaisedFloorPathUsable(0x11, 0.0f, false));
             ai::SwimHandoffFacts f;
             f.inWater = true;
             f.routeEndFromBot = 0.0f; // the own route refused: no progress
