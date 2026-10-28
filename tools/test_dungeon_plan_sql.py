@@ -2059,10 +2059,12 @@ class DungeonPlanSql(unittest.TestCase):
         self.assertIn("(818, 62671, 'Ighal''for');", text)
 
     def test_karazhan_crypt_is_the_plan_with_the_shaft_dive(self):
-        # 20261028220000 (turtle-agent prep/kc-corpsemuncher 21d8a691, 2026-10-28) replaces 20261025002600: same plan, with
+        # 20261028220000 (turtle-agent prep/kc-corpsemuncher b605d99, 2026-10-28) replaces 20261025002600: same plan, with
         # Corpsemuncher 91917 as leg 6 (specs/kc-corpsemuncher.md option A, the shaft climb). From Hivaxxis the party walks to
         # the shaft floor F1 (-11211 -1522 -45.9), swims one row 42.6 yd up to S1 (-11211 -1516 -3.0) and walks the north ramp's
-        # first dry polygon D1 (-11211 -1492 3.6) into his dry wing; the T0 probe of 2026-10-28 passed both moves. Legs 0-5 are
+        # first dry polygon D1 (-11211 -1492 3.6) into his dry wing; the T0 probe of 2026-10-28 passed both moves. The walk
+        # reaches F1 through the corridor point (-11211 -1689 -28.5) leg 4 already walks (kc-cm-fix1: the exporter's cut at
+        # -11166.4 -1686.7 -30.2 stood 1.7 yd under the corridor floor and the run refused it twice live). Legs 0-5 are
         # row for row the old file (the Hivaxxis leg reordered with a stand for every pack, the lower-crypt pools on dry stands,
         # see test_karazhan_crypt_hivaxxis_leg_walks_the_room_east_to_west and
         # test_karazhan_crypt_lower_crypt_pools_have_dry_stands). The reorder itself came from r40 (RUN-LESSONS
@@ -2070,24 +2072,24 @@ class DungeonPlanSql(unittest.TestCase):
         # Spectre pulls worked, Archlich Enkhraz, Marrowspike and Hivaxxis down, STOP at step 113). The old leg 3 sent the party
         # from the lower crypt back up to the z 4.3 walkway; the only way up is the dive link in reverse, from the water, and the
         # lead bot never made it (it stood on the shaft floor and made no way toward the next point), so the plan does every upper
-        # floor first, the dive next and the lower crypt last, and the run ends down there: 7 legs, 309 steps (154 pulls,
-        # 149 moves, 6 bosses), 317 rows. The critters 14881, the never-waking Remains 91924 and the ledge Crypt Fearfeaster
+        # floor first, the dive next and the lower crypt last, and the run ends down there: 7 legs, 315 steps (154 pulls,
+        # 155 moves, 6 bosses), 323 rows. The critters 14881, the never-waking Remains 91924 and the ledge Crypt Fearfeaster
         # 91922 stay out as in 20261025001100.
         name, text = newest_plan_text("karazhan_crypt")
         self.assertEqual(name, "20261028220000_world.sql")
-        self.assertIn("('karazhan_crypt', 800, '', '', '91918,91913,91911,91925', 'turtle-agent 21d8a691 dungeons/karazhan_crypt.json', 'plan v1, draft (reordered 2026-10-25: upper floors, shaft dive, lower crypt last; Corpsemuncher leg 6 by the shaft climb (swim hand-off), probe T0 2026-10-28; not live-checked; hivaxxis reordered after r40 slot5b; lower-crypt pools dry 2026-10-26)');", text)
+        self.assertIn("('karazhan_crypt', 800, '', '', '91918,91913,91911,91925', 'turtle-agent b605d99 dungeons/karazhan_crypt.json', 'plan v1, draft (reordered 2026-10-25: upper floors, shaft dive, lower crypt last; Corpsemuncher leg 6 by the shaft climb (swim hand-off), probe T0 2026-10-28; not live-checked; hivaxxis reordered after r40 slot5b; lower-crypt pools dry 2026-10-26)');", text)
         self.assertEqual(leg_rows(text, "karazhan_crypt"),
                          {0: ("archlich_enkhraz", ""), 1: ("guard_captain_gort", ""), 2: ("commander_andreon", ""),
                           3: ("marrowspike_dive", ""), 4: ("marrowspike", ""), 5: ("hivaxxis", ""),
                           6: ("corpsemuncher", "")})
         rows = [r for r in self.step_rows(text) if r["plan"] == "karazhan_crypt"]
-        self.assertEqual(len(rows), 309)
+        self.assertEqual(len(rows), 315)
         self.assertEqual({leg: len(leg_steps(rows, leg)) for leg in range(7)},
-                         {0: 51, 1: 55, 2: 78, 3: 27, 4: 41, 5: 14, 6: 43})
+                         {0: 51, 1: 55, 2: 78, 3: 27, 4: 41, 5: 14, 6: 49})
         self.assertEqual([len([r for r in leg_steps(rows, leg) if r["kind"] == "pull"]) for leg in range(7)],
                          [23, 41, 43, 5, 25, 4, 13])
         self.assertEqual([len([r for r in leg_steps(rows, leg) if r["kind"] == "move"]) for leg in range(7)],
-                         [27, 13, 34, 22, 15, 9, 29])
+                         [27, 13, 34, 22, 15, 9, 35])
         self.assertEqual([r["entry"] for r in rows if r["kind"] == "boss"], ["91916", "92935", "91919", "91920", "91929", "91917"])
         self.assertEqual({r["kind"] for r in rows}, {"move", "pull", "boss"})
         for leg in (0, 1, 2, 4, 5, 6):
@@ -2121,6 +2123,23 @@ class DungeonPlanSql(unittest.TestCase):
         self.assertEqual(int(d1to[0]["seq"]) - int(s1[0]["seq"]), 1, "D1 comes right after the swim")
         self.assertLess(math.dist([float(f1[0][c]) for c in ("x", "y", "z")],
                                   [float(s1[0][c]) for c in ("x", "y", "z")]), 60.0, "one cmd move row")
+        # kc-cm-fix1 (RUN-LESSONS "bosses 1236 live"): the exporter's old cut row at -11166.4 -1686.7 -30.2 stood
+        # 1.7 yd under the corridor floor and the live run refused it twice. The walk now goes through the corridor
+        # point (-11211 -1689 -28.5) leg 4 already walks (leg 6's first via), and every row of that walk is on the
+        # -28.47 floor.
+        self.assertFalse([r for r in leg6moves
+                          if abs(float(r["x"]) + 11166.399) < 0.5 and abs(float(r["y"]) + 1686.6667) < 0.5],
+                         "the refused cut point must never come back")
+        via0 = [r for r in leg6moves if r["comment"] == "via" and
+                math.dist([float(r[c]) for c in ("x", "y", "z")], [-11211.0, -1689.0, -28.5]) < 0.3]
+        self.assertEqual(len(via0), 1, "leg 6's first via is leg 4's corridor point")
+        self.assertLess(int(via0[0]["seq"]), int(f1[0]["seq"]), "the corridor via comes before F1")
+        corridor = [r for r in leg6moves
+                    if int(r["seq"]) >= 7 and int(r["seq"]) <= int(via0[0]["seq"])]
+        self.assertEqual([int(r["seq"]) for r in corridor], [7, 8, 9, 10, 11, 12, 13, 14, 15])
+        for r in corridor:
+            self.assertAlmostEqual(float(r["z"]), -28.47348, delta=0.6,
+                                   msg="the corridor walk stays on the -28.47 floor")
         # the south wing (x -11270..-11170, y -1485..-1395) holds leg 6's rows only
         wing = [r for r in rows if -11270 <= float(r["x"]) <= -11170 and -1485 <= float(r["y"]) <= -1395]
         self.assertTrue(wing, "Corpsemuncher's wing has rows now")
