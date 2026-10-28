@@ -2059,54 +2059,63 @@ class DungeonPlanSql(unittest.TestCase):
         self.assertIn("(818, 62671, 'Ighal''for');", text)
 
     def test_karazhan_crypt_is_the_plan_with_the_shaft_dive(self):
-        # 20261025002600 (turtle-agent prep/karazhan_crypt c49eb6c, 2026-10-26) replaces 20261025001500: same plan, with the
-        # two lower-crypt pool crossings moved onto dry stands after proof20d2 (steps 248 and 254, RUN-LESSONS; see
-        # test_karazhan_crypt_lower_crypt_pools_have_dry_stands). It keeps the Hivaxxis leg reordered with a stand for every
-        # pack (see test_karazhan_crypt_hivaxxis_leg_walks_the_room_east_to_west). The reorder itself came from r40 (RUN-LESSONS
+        # 20261028220000 (turtle-agent prep/kc-corpsemuncher 21d8a691, 2026-10-28) replaces 20261025002600: same plan, with
+        # Corpsemuncher 91917 as leg 6 (specs/kc-corpsemuncher.md option A, the shaft climb). From Hivaxxis the party walks to
+        # the shaft floor F1 (-11211 -1522 -45.9), swims one row 42.6 yd up to S1 (-11211 -1516 -3.0) and walks the north ramp's
+        # first dry polygon D1 (-11211 -1492 3.6) into his dry wing; the T0 probe of 2026-10-28 passed both moves. Legs 0-5 are
+        # row for row the old file (the Hivaxxis leg reordered with a stand for every pack, the lower-crypt pools on dry stands,
+        # see test_karazhan_crypt_hivaxxis_leg_walks_the_room_east_to_west and
+        # test_karazhan_crypt_lower_crypt_pools_have_dry_stands). The reorder itself came from r40 (RUN-LESSONS
         # "r40 karazhan_crypt slot5", the first full run: 0 deaths, the dive worked for all 5 in 12 s, the Drowned Sinners and the
         # Spectre pulls worked, Archlich Enkhraz, Marrowspike and Hivaxxis down, STOP at step 113). The old leg 3 sent the party
         # from the lower crypt back up to the z 4.3 walkway; the only way up is the dive link in reverse, from the water, and the
         # lead bot never made it (it stood on the shaft floor and made no way toward the next point), so the plan does every upper
-        # floor first, the dive next and the lower crypt last, and the run ends down there: 6 legs, 266 steps (141 pulls,
-        # 120 moves, 5 bosses), 273 rows. Corpsemuncher 91917 is out: his wing is a navmesh island whose only contact is the swim
-        # across the shaft, water at both ends, which the mover refuses (BFD C2/C3). The critters 14881, the never-waking Remains
-        # 91924 and the ledge Crypt Fearfeaster 91922 stay out as in 20261025001100.
+        # floor first, the dive next and the lower crypt last, and the run ends down there: 7 legs, 309 steps (154 pulls,
+        # 149 moves, 6 bosses), 317 rows. The critters 14881, the never-waking Remains 91924 and the ledge Crypt Fearfeaster
+        # 91922 stay out as in 20261025001100.
         name, text = newest_plan_text("karazhan_crypt")
-        self.assertEqual(name, "20261025002600_world.sql")
-        self.assertIn("('karazhan_crypt', 800, '', '', '91918,91913,91911,91925', 'turtle-agent c49eb6cb dungeons/karazhan_crypt.json', 'plan v1, draft (reordered 2026-10-25: upper floors, shaft dive, lower crypt last; Corpsemuncher out: no dry contact; not live-checked; hivaxxis reordered after r40 slot5b; lower-crypt pools dry 2026-10-26 after proof20d2)');", text)
+        self.assertEqual(name, "20261028220000_world.sql")
+        self.assertIn("('karazhan_crypt', 800, '', '', '91918,91913,91911,91925', 'turtle-agent 21d8a691 dungeons/karazhan_crypt.json', 'plan v1, draft (reordered 2026-10-25: upper floors, shaft dive, lower crypt last; Corpsemuncher leg 6 by the shaft climb (swim hand-off), probe T0 2026-10-28; not live-checked; hivaxxis reordered after r40 slot5b; lower-crypt pools dry 2026-10-26)');", text)
         self.assertEqual(leg_rows(text, "karazhan_crypt"),
                          {0: ("archlich_enkhraz", ""), 1: ("guard_captain_gort", ""), 2: ("commander_andreon", ""),
-                          3: ("marrowspike_dive", ""), 4: ("marrowspike", ""), 5: ("hivaxxis", "")})
+                          3: ("marrowspike_dive", ""), 4: ("marrowspike", ""), 5: ("hivaxxis", ""),
+                          6: ("corpsemuncher", "")})
         rows = [r for r in self.step_rows(text) if r["plan"] == "karazhan_crypt"]
-        self.assertEqual(len(rows), 266)
-        self.assertEqual({leg: len(leg_steps(rows, leg)) for leg in range(6)}, {0: 51, 1: 55, 2: 78, 3: 27, 4: 41, 5: 14})
-        self.assertEqual([len([r for r in leg_steps(rows, leg) if r["kind"] == "pull"]) for leg in range(6)],
-                         [23, 41, 43, 5, 25, 4])
-        self.assertEqual([len([r for r in leg_steps(rows, leg) if r["kind"] == "move"]) for leg in range(6)],
-                         [27, 13, 34, 22, 15, 9])
-        self.assertEqual([r["entry"] for r in rows if r["kind"] == "boss"], ["91916", "92935", "91919", "91920", "91929"])
+        self.assertEqual(len(rows), 309)
+        self.assertEqual({leg: len(leg_steps(rows, leg)) for leg in range(7)},
+                         {0: 51, 1: 55, 2: 78, 3: 27, 4: 41, 5: 14, 6: 43})
+        self.assertEqual([len([r for r in leg_steps(rows, leg) if r["kind"] == "pull"]) for leg in range(7)],
+                         [23, 41, 43, 5, 25, 4, 13])
+        self.assertEqual([len([r for r in leg_steps(rows, leg) if r["kind"] == "move"]) for leg in range(7)],
+                         [27, 13, 34, 22, 15, 9, 29])
+        self.assertEqual([r["entry"] for r in rows if r["kind"] == "boss"], ["91916", "92935", "91919", "91920", "91929", "91917"])
         self.assertEqual({r["kind"] for r in rows}, {"move", "pull", "boss"})
-        for leg in (0, 1, 2, 4, 5):
+        for leg in (0, 1, 2, 4, 5, 6):
             self.assertEqual(leg_steps(rows, leg)[-1]["kind"], "boss", leg)
         self.assertEqual(leg_steps(rows, 3)[-1]["kind"], "pull", "the dive leg ends on the slope pack; it has no boss")
-        self.assertEqual([r["entries"] for r in rows if r["kind"] == "boss"], ["91927", "", "", "", ""])
+        self.assertEqual([r["entries"] for r in rows if r["kind"] == "boss"], ["91927", "", "", "", "", ""])
         pulls = [r for r in rows if r["kind"] == "pull"]
         entries = [e for r in pulls for e in r["entries"].split(",")]
         self.assertNotIn("14881", entries)      # the 19 critters of the spider room
         self.assertNotIn("91927", entries)      # Enkhraz's cat is his boss.first
         self.assertNotIn("91931", entries)      # the GM-only Alarus trigger
         self.assertNotIn("91922", entries)      # the unmeshed ledge's Fearfeaster
-        self.assertNotIn("91917", entries, "Corpsemuncher is out: no dry contact to his wing")
-        self.assertEqual([r for r in rows if r["entry"] == "91917"], [])
-        # no row stands in his south wing (x -11270..-11170, y -1485..-1395)
-        self.assertEqual([r for r in rows if -11270 <= float(r["x"]) <= -11170 and -1485 <= float(r["y"]) <= -1395], [])
+        self.assertNotIn("91917", entries, "Corpsemuncher is the leg's boss, not a pull")
+        boss6 = [r for r in rows if r["entry"] == "91917"]
+        self.assertEqual([(r["leg"], r["kind"]) for r in boss6], [("6", "boss")])
+        # the south wing (x -11270..-11170, y -1485..-1395) holds leg 6's rows only
+        wing = [r for r in rows if -11270 <= float(r["x"]) <= -11170 and -1485 <= float(r["y"]) <= -1395]
+        self.assertTrue(wing, "Corpsemuncher's wing has rows now")
+        self.assertEqual({r["leg"] for r in wing}, {"6"})
         self.assertEqual(len([r for r in pulls if "91930" in r["entries"].split(",")]), 3)   # the 7 Tomb Creepers, three pulls
-        # 4 Drowned Sinners at the shaft floor (leg 3) and the one on the south ramp (leg 1, z -1.5)
+        # 4 Drowned Sinners at the shaft floor (leg 3), the one on the south ramp (leg 1, z -1.5) and the ramp-foot one of
+        # leg 6 (z -1.46, pulled from D1)
         niners = [r for r in pulls if r["entries"] == "91932"]
-        self.assertEqual(len(niners), 5)
+        self.assertEqual(len(niners), 6)
         self.assertEqual([r["leg"] for r in niners].count("3"), 4)
         self.assertEqual([r["leg"] for r in niners].count("1"), 1)
-        self.assertLessEqual(max(float(r["radius"]) for r in pulls), 12.8)
+        self.assertEqual([r["leg"] for r in niners].count("6"), 1)
+        self.assertLessEqual(max(float(r["radius"]) for r in pulls), 20.0)   # leg 6's wing packs are the widest (16.5..20)
         self.assertGreaterEqual(min(float(r["radius"]) for r in pulls), 5.0)
         self.assertEqual(re.findall(r"(?m)^DELETE FROM `ai_dungeon_step` WHERE `plan` = '(\w+)';", text), ["karazhan_crypt"])
         # The map 800 ai_dungeon_boss seed stays in 20261024021100 (the six bosses are unchanged): this file must not seed it again.
@@ -2164,7 +2173,8 @@ class DungeonPlanSql(unittest.TestCase):
                          [[-11211.0, -1689.0, -28.5], [-11202.032, -1738.184, -29.205], [-11194.8, -1752.3, -28.3]])
         to4 = [r for r in leg4 if r["comment"] == "to"][0]
         self.assertEqual([round(float(to4[c]), 3) for c in ("x", "y", "z")], [-11199.199, -1770.667, -29.273])
-        self.assertFalse([r for r in rows if abs(float(r["x"]) + 11200.0) < 0.3 and abs(float(r["y"]) + 1749.3) < 0.3],
+        self.assertFalse([r for r in rows if abs(float(r["x"]) + 11200.0) < 0.3 and abs(float(r["y"]) + 1749.3) < 0.3
+                          and abs(float(r["z"]) + 29.4) < 0.3],
                          "the refused cut point must be gone")
         # The walk's hops are r40's own moves, all under the run leader's 60 yd.
         walk = [leg3[-1]] + vias + [to4]
@@ -2190,6 +2200,8 @@ class DungeonPlanSql(unittest.TestCase):
             self.assertTrue(all(float(r["z"]) <= -14.7 for r in leg_steps(rows, leg)), leg)
         lead = None
         for r in rows:
+            if r["leg"] == "6":
+                continue   # leg 6 climbs the shaft by the one swim row (the Corpsemuncher pins)
             if r["kind"] == "move" and lead is not None and lead < 0.0 and float(r["z"]) > 3.0:
                 self.fail("a move row climbs back up: leg %s seq %s to %s %s %s" % (r["leg"], r["seq"], r["x"], r["y"], r["z"]))
             lead = float(r["z"])
