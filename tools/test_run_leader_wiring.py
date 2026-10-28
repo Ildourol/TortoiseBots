@@ -421,6 +421,15 @@ class RunLeaderWiringTest(unittest.TestCase):
         # 1. `cmd move` takes the floor at or below the point before a surface above it (a low ceiling).
         move = body(COMMANDS, "static bool CommanderMove(", "\n}\n")
         self.assertIn("RemoteCommander::ChooseFloorZ(point.z, belowZ,", move)
+        # 1b. Karazhan Crypt kc316 step 292: a point in water is never lifted out of it. The glue reads the
+        # point's liquid (the swim line's own test) only when the search from above counts, and passes it on.
+        self.assertIn("aboveZ, aboveZ > INVALID_HEIGHT, pointInWater, waterLevel);", move)
+        above = move[move.index("if (!RemoteCommander::FloorBelowUsable(point.z, belowZ"):
+                     move.index("float const snapped = RemoteCommander::ChooseFloorZ(")]
+        self.assertIn("ai::kSwimLiquidRequest, &liquid));", above)
+        self.assertIn("pointInWater = ai::SwimSampleInWater(status,", above)
+        self.assertIn("waterLevel = liquid.level;", above)
+        self.assertIn('#include "../ai/playerbot/SwimPathPolicy.h"', COMMANDS)
         # 2. A follower off the lead bot's line walks its own; the refusal still names the bot for the summon.
         direct = body(COMMANDS, "static bool CommanderMoveDirect(ChatHandler* handler, CommanderOrder const& order,\n"
                       "    RemoteCommander::MovePoint const& point, std::string const& intent)\n{", "\n}\n")

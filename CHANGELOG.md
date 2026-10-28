@@ -51,6 +51,7 @@
 - Fixed the run leader sending the tank at a mob its own crowd control was about to take, and bots keeping that sheep as their target after it landed: the guard and the engage on arrival leave an ordered-but-unlanded CC mark to its CC bot, and every bot's order on a landed one is dropped.
 - New: bots interrupt the Wailing Caverns lords, Mutanus, Grimlok and Captain Greenskin.
 - Fixed: Karazhan Crypt's run leader plan clears Corpsemuncher (leg 6, a swim up the shaft).
+- Fixed `cmd move` lifting a point in open water onto a ledge above the surface: the point stays in the water, so the run leader's swim up Karazhan Crypt's shaft no longer pauses.
 
 ## v1.8.0 (2026-10-22)
 

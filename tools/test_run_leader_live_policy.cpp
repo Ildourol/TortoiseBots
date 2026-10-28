@@ -1,5 +1,6 @@
 // Standalone checks for the fixes from the 2026-10-16 Uldaman run-leader live test (server build 19z10):
-//   1. `cmd move` takes the floor at or just below the point before a surface above it (a low ceiling);
+//   1. `cmd move` takes the floor at or just below the point before a surface above it (a low ceiling),
+//      and never lifts a point in water out of the water (Karazhan Crypt kc316, 2026-10-28);
 //   2. a direct step: a follower off the lead bot's line walks its own straight line, and one the step
 //      still refuses is summoned before the step goes out again;
 //   3. after a regroup the party walks the plan's way back (not straight at the pack), replaying the
@@ -11,8 +12,11 @@
 #include "../runtime/DungeonRunPolicy.h"
 #include "../runtime/RemoteCommanderPolicy.h"
 #include "../ai/playerbot/DoorLockPolicy.h"
+#include "../ai/playerbot/SwimPathPolicy.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 
@@ -70,6 +74,64 @@ static void TestFloorSnap()
     CHECK(!FloorBelowUsable(-43.0f, -43.0f + kFloorBelowHeadroom + 0.1f, true));
     // Neither found: the point keeps its own z.
     CHECK(ChooseFloorZ(-43.0f, 0.0f, false, 0.0f, false) == -43.0f);
+}
+
+// Karazhan Crypt kc316 (2026-10-28, step 292, leg 6 corpsemuncher): the plan's water row S2
+// (-11205 -1514.5 -0.5) lies in open water 3.5 yd under the shaft's WMO water surface (3.0), the shaft
+// floor 46 yd below it (nothing in the below band) and a model surface at 5.2 within kFloorSnapRange above
+// it. `cmd move` lifted the point onto that surface ("Move point snapped to the floor: -11205.0 -1514.5
+// 5.2", 4 times). From the lead floating at -11209 -1522.5 -26.5 the core then answered 0x11 for a dry end,
+// the swim hand-off's 0x11 line needs the end in water, so the lead's own move failed and the run paused
+// ("stuck 27.5 yd ... cmd move path type 0x11"); from S1 the same point was refused off-mesh. A point in
+// water is never lifted out of the water: it keeps its z, so the move is a water-to-water swim line.
+static void TestFloorSnapKeepsAWaterPointInTheWater()
+{
+    using namespace RemoteCommander;
+    float const level = 3.0f;
+    float const s2x = -11205.0f, s2y = -1514.5f, s2z = -0.5f;
+    // The live numbers: the floor far below (or none in reach), the surface above out of the water.
+    CHECK(ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, true, level) == s2z);
+    CHECK(ChooseFloorZ(s2z, 0.0f, false, 5.2f, true, true, level) == s2z);
+    // Not in water, or no water fact (every other caller): the old snap onto the surface above.
+    CHECK(ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, false, level) == 5.2f);
+    CHECK(ChooseFloorZ(s2z, -45.9f, true, 5.2f, true) == 5.2f);
+    // A ledge above the point but still under the surface: snapped as before (it stays in the water).
+    CHECK(ChooseFloorZ(s2z, 0.0f, false, 1.0f, true, true, level) == 1.0f);
+    CHECK(ChooseFloorZ(s2z, 0.0f, false, level, true, true, level) == level);
+    // A floor in the below band (a lake bed under the point) wins first, in water or not.
+    CHECK(ChooseFloorZ(s2z, -3.0f, true, 5.2f, true, true, level) == -3.0f);
+    // Nothing found: the point keeps its z.
+    CHECK(ChooseFloorZ(s2z, 0.0f, false, 0.0f, false, true, level) == s2z);
+
+    // The move the lead can then execute: from its logged spots in the shaft (kc316 12:29:04 "stranded at
+    // -11209.0 -1522.5 -26.5", the shaft floor F1, S1, and deep in the shaft's south half) the end is in water
+    // (the glue samples it 0.5 yd up), so the core's 0x11 (no polygon in reach) or 0x81 (both ends swimmable)
+    // answer is handed to the core as a straight swim (SwimHandoff CoreLine).
+    struct Spot { float x, y, z; };
+    Spot const spots[] = { { -11209.0f, -1522.5f, -26.5f }, { -11211.0f, -1522.0f, -45.9f },
+        { -11211.0f, -1516.0f, -3.0f }, { -11215.0f, -1560.0f, -30.0f } };
+    std::uint32_t const types[] = { ai::kPathTypeNormal | ai::kPathTypeNotUsingPath,
+        ai::kPathTypeNormal | ai::kPathTypeUnderwater };
+    for (Spot const& p : spots)
+        for (std::uint32_t const type : types)
+        {
+            float const endZ = ChooseFloorZ(s2z, -45.9f, true, 5.2f, true, true, level);
+            ai::SwimHandoffFacts f;
+            f.inWater = true;
+            f.routeEndFromBot = 0.0f; // the own route refused: no progress
+            f.endFromBot = std::sqrt((s2x - p.x) * (s2x - p.x) + (s2y - p.y) * (s2y - p.y) + (endZ - p.z) * (endZ - p.z));
+            f.coreType = type;
+            f.swimmableHere = true;
+            f.endInWater = endZ + 0.5f < level;
+            f.endSwimmable = f.endInWater;
+            CHECK(ai::ChooseSwimHandoff(f) == ai::SwimHandoff::CoreLine);
+            // The lifted point (5.2) was out of the water: never a swim line to it.
+            ai::SwimHandoffFacts lifted = f;
+            lifted.endInWater = 5.2f + 0.5f < level;
+            lifted.endSwimmable = false;
+            lifted.coreType = ai::kPathTypeNormal | ai::kPathTypeNotUsingPath;
+            CHECK(ai::ChooseSwimHandoff(lifted) != ai::SwimHandoff::CoreLine);
+        }
 }
 
 static void TestDirectOwnLine()
@@ -451,6 +513,7 @@ static void TestEventCount()
 int main()
 {
     TestFloorSnap();
+    TestFloorSnapKeepsAWaterPointInTheWater();
     TestDirectOwnLine();
     TestDirectSummon();
     TestDirectSummonHeldBot();

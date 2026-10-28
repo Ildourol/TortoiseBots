@@ -1645,11 +1645,23 @@ inline bool FloorBelowUsable(float pointZ, float belowZ, bool belowValid)
         pointZ - belowZ <= kFloorBelowBand;
 }
 
-inline float ChooseFloorZ(float pointZ, float belowZ, bool belowValid, float aboveZ, bool aboveValid)
+// Karazhan Crypt kc316 (2026-10-28, step 292): the plan's water row S2 lay in open water 3.5 yd under the
+// shaft's surface (3.0), the floor 46 yd below, a model surface at 5.2 within kFloorSnapRange above; the
+// search from above lifted the point onto it, out of the water and off the navmesh, so the lead bot
+// floating in the shaft was sent to a dry spot no swim line or path reaches and the run paused. A point in
+// water (pointInWater: the core's liquid status at the point is in or under water or ocean, waterLevel its
+// surface) keeps its z when the only floor found is the one above and that lies above the water: a swim
+// move ends in the water. A floor in the below band, or one above that is still under the surface, is
+// taken as before; a caller with no water fact (the defaults) keeps the old rule.
+inline float ChooseFloorZ(float pointZ, float belowZ, bool belowValid, float aboveZ, bool aboveValid,
+    bool pointInWater = false, float waterLevel = 0.0f)
 {
     if (FloorBelowUsable(pointZ, belowZ, belowValid))
         return belowZ;
-    return SnapToFloorZ(pointZ, aboveZ, aboveValid && std::isfinite(aboveZ));
+    bool const above = aboveValid && std::isfinite(aboveZ);
+    if (above && pointInWater && std::isfinite(waterLevel) && aboveZ > waterLevel)
+        return pointZ;
+    return SnapToFloorZ(pointZ, aboveZ, above);
 }
 
 struct MoveFacts

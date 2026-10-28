@@ -55,6 +55,7 @@
 #include "playerbot/policy/combat/RunnerFinishPolicy.h"
 #include "runtime/OwnedBotQolPolicy.h"
 #include "../runtime/RemoteCommanderPolicy.h"
+#include "../ai/playerbot/SwimPathPolicy.h" // ChooseFloorZ's water fact (cmd move keeps a water point in the water)
 #include "../ai/playerbot/AiFactory.h"
 #include "../runtime/RemoteCommanderView.h"
 #include "../runtime/RemoteCommanderTasks.h"
@@ -2670,12 +2671,31 @@ static bool CommanderMove(ChatHandler* handler, CommanderOrder const& order, std
         float const belowZ = lead->GetMap()->GetHeight(point.x, point.y, point.z, true,
             RemoteCommander::kFloorBelowBand + RemoteCommander::kFloorBelowHeadroom);
         float aboveZ = INVALID_HEIGHT;
+        // A point in water is never lifted out of it (Karazhan Crypt kc316 step 292): its liquid is read
+        // only when the search from above is the one that counts, with the swim line's own test (all
+        // liquids, water or ocean by type flags, in or under the surface: SwimPathPolicy.h).
+        bool pointInWater = false;
+        float waterLevel = 0.0f;
         if (!RemoteCommander::FloorBelowUsable(point.z, belowZ, belowZ > INVALID_HEIGHT))
+        {
             aboveZ = lead->GetMap()->GetHeight(point.x, point.y,
                 point.z + RemoteCommander::kFloorSnapRange, true,
                 2.0f * RemoteCommander::kFloorSnapRange);
+            if (aboveZ > INVALID_HEIGHT)
+            {
+                GridMapLiquidData liquid{};
+                uint32 const status = static_cast<uint32>(lead->GetMap()->GetTerrain()->getLiquidStatus(point.x,
+                    point.y, point.z, ai::kSwimLiquidRequest, &liquid));
+                pointInWater = ai::SwimSampleInWater(status, status != LIQUID_MAP_NO_WATER ? liquid.type_flags : 0);
+                waterLevel = liquid.level;
+            }
+        }
         float const snapped = RemoteCommander::ChooseFloorZ(point.z, belowZ, belowZ > INVALID_HEIGHT,
-            aboveZ, aboveZ > INVALID_HEIGHT);
+            aboveZ, aboveZ > INVALID_HEIGHT, pointInWater, waterLevel);
+        if (snapped == point.z && pointInWater && aboveZ > waterLevel &&
+            RemoteCommander::SnapToFloorZ(point.z, aboveZ, aboveZ > INVALID_HEIGHT) != point.z)
+            handler->PSendSysMessage("Move point kept in the water: %.1f %.1f %.1f (surface %.1f, floor above it %.1f)",
+                point.x, point.y, point.z, waterLevel, aboveZ);
         if (snapped != point.z)
         {
             point.z = snapped;
