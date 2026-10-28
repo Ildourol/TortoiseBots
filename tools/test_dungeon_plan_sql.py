@@ -2059,10 +2059,11 @@ class DungeonPlanSql(unittest.TestCase):
         self.assertIn("(818, 62671, 'Ighal''for');", text)
 
     def test_karazhan_crypt_is_the_plan_with_the_shaft_dive(self):
-        # 20261028220000 (turtle-agent prep/kc-corpsemuncher b605d99, 2026-10-28) replaces 20261025002600: same plan, with
+        # 20261028220000 (turtle-agent prep/kc-corpsemuncher fee876a, 2026-10-28) replaces 20261025002600: same plan, with
         # Corpsemuncher 91917 as leg 6 (specs/kc-corpsemuncher.md option A, the shaft climb). From Hivaxxis the party walks to
-        # the shaft floor F1 (-11211 -1522 -45.9), swims one row 42.6 yd up to S1 (-11211 -1516 -3.0) and walks the north ramp's
-        # first dry polygon D1 (-11211 -1492 3.6) into his dry wing; the T0 probe of 2026-10-28 passed both moves. The walk
+        # the shaft floor F1 (-11211 -1522 -45.9), swims one row 42.6 yd up to S1 (-11211 -1516 -3.0), one more open-water row
+        # to S2 (-11205 -1514.5 -0.5) and walks the north ramp's first dry polygon D1 (-11211 -1492 3.6) into his dry wing; the
+        # T0 probe of 2026-10-28 passed F1->S1 and S1->D1. The walk
         # reaches F1 through the corridor point (-11211 -1689 -28.5) leg 4 already walks (kc-cm-fix1: the exporter's cut at
         # -11166.4 -1686.7 -30.2 stood 1.7 yd under the corridor floor and the run refused it twice live). Legs 0-5 are
         # row for row the old file (the Hivaxxis leg reordered with a stand for every pack, the lower-crypt pools on dry stands,
@@ -2072,24 +2073,24 @@ class DungeonPlanSql(unittest.TestCase):
         # Spectre pulls worked, Archlich Enkhraz, Marrowspike and Hivaxxis down, STOP at step 113). The old leg 3 sent the party
         # from the lower crypt back up to the z 4.3 walkway; the only way up is the dive link in reverse, from the water, and the
         # lead bot never made it (it stood on the shaft floor and made no way toward the next point), so the plan does every upper
-        # floor first, the dive next and the lower crypt last, and the run ends down there: 7 legs, 315 steps (154 pulls,
-        # 155 moves, 6 bosses), 323 rows. The critters 14881, the never-waking Remains 91924 and the ledge Crypt Fearfeaster
+        # floor first, the dive next and the lower crypt last, and the run ends down there: 7 legs, 316 steps (154 pulls,
+        # 156 moves, 6 bosses), 324 rows. The critters 14881, the never-waking Remains 91924 and the ledge Crypt Fearfeaster
         # 91922 stay out as in 20261025001100.
         name, text = newest_plan_text("karazhan_crypt")
         self.assertEqual(name, "20261028220000_world.sql")
-        self.assertIn("('karazhan_crypt', 800, '', '', '91918,91913,91911,91925', 'turtle-agent b605d99 dungeons/karazhan_crypt.json', 'plan v1, draft (reordered 2026-10-25: upper floors, shaft dive, lower crypt last; Corpsemuncher leg 6 by the shaft climb (swim hand-off), probe T0 2026-10-28; not live-checked; hivaxxis reordered after r40 slot5b; lower-crypt pools dry 2026-10-26)');", text)
+        self.assertIn("('karazhan_crypt', 800, '', '', '91918,91913,91911,91925', 'turtle-agent fee876a dungeons/karazhan_crypt.json', 'plan v1, draft (reordered 2026-10-25: upper floors, shaft dive, lower crypt last; Corpsemuncher leg 6 by the shaft climb (swim hand-off), probe T0 2026-10-28; not live-checked; hivaxxis reordered after r40 slot5b; lower-crypt pools dry 2026-10-26)');", text)
         self.assertEqual(leg_rows(text, "karazhan_crypt"),
                          {0: ("archlich_enkhraz", ""), 1: ("guard_captain_gort", ""), 2: ("commander_andreon", ""),
                           3: ("marrowspike_dive", ""), 4: ("marrowspike", ""), 5: ("hivaxxis", ""),
                           6: ("corpsemuncher", "")})
         rows = [r for r in self.step_rows(text) if r["plan"] == "karazhan_crypt"]
-        self.assertEqual(len(rows), 315)
+        self.assertEqual(len(rows), 316)
         self.assertEqual({leg: len(leg_steps(rows, leg)) for leg in range(7)},
-                         {0: 51, 1: 55, 2: 78, 3: 27, 4: 41, 5: 14, 6: 49})
+                         {0: 51, 1: 55, 2: 78, 3: 27, 4: 41, 5: 14, 6: 50})
         self.assertEqual([len([r for r in leg_steps(rows, leg) if r["kind"] == "pull"]) for leg in range(7)],
                          [23, 41, 43, 5, 25, 4, 13])
         self.assertEqual([len([r for r in leg_steps(rows, leg) if r["kind"] == "move"]) for leg in range(7)],
-                         [27, 13, 34, 22, 15, 9, 35])
+                         [27, 13, 34, 22, 15, 9, 36])
         self.assertEqual([r["entry"] for r in rows if r["kind"] == "boss"], ["91916", "92935", "91919", "91920", "91929", "91917"])
         self.assertEqual({r["kind"] for r in rows}, {"move", "pull", "boss"})
         for leg in (0, 1, 2, 4, 5, 6):
@@ -2120,7 +2121,25 @@ class DungeonPlanSql(unittest.TestCase):
         d1to = [r for r in leg6moves if r["comment"] == "to" and
                 math.dist([float(r[c]) for c in ("x", "y", "z")], [-11211.0, -1492.0, 3.6]) < 0.3]
         self.assertEqual(len(d1to), 1, "the `to` D1 on the north ramp's first dry polygon")
-        self.assertEqual(int(d1to[0]["seq"]) - int(s1[0]["seq"]), 1, "D1 comes right after the swim")
+        # kc-cm-fix2 (RUN-LESSONS "combat live 1236b" run A, step 292): a Drowned Sinner engaged on the arrival at S1, its
+        # fight ran under the D1 row and left the lead bot 34.2 yd from D1 in open water, where the core has no polygon in its
+        # 5 yd start search and answers the dry D1 with its mid-water shortcut 0x11, which the swim hand-off refuses for a dry
+        # end: "the lead bot is stuck". S2 is a second open-water row right after S1, so a fight on the arrival at S1 runs under
+        # a water row (the hand-off swims water to water from anywhere in the open shaft); S2 lies in the band north of
+        # y -1518.5 where the core paths to D1 (0x1), and more than the run leader's stalled-arrival 6 yd from S1, so the
+        # arrival at S1 never counts as the arrival at S2.
+        s2 = [r for r in leg6moves
+              if math.dist([float(r[c]) for c in ("x", "y", "z")], [-11205.0, -1514.5, -0.5]) < 0.3]
+        self.assertEqual(len(s2), 1, "one open-water row S2 after S1")
+        self.assertEqual(s2[0]["comment"], "via")
+        self.assertEqual(int(s2[0]["seq"]) - int(s1[0]["seq"]), 1, "S2 comes right after the swim to S1")
+        self.assertEqual(int(d1to[0]["seq"]) - int(s2[0]["seq"]), 1, "D1 is sent from S2")
+        self.assertGreater(float(s2[0]["y"]), -1518.5, "S2 is in the band where the core paths to D1")
+        self.assertGreater(math.dist([float(s1[0][c]) for c in ("x", "y", "z")],
+                                     [float(s2[0][c]) for c in ("x", "y", "z")]), 6.0,
+                           "S2 is not reached by standing on S1 (kStalledArriveYd)")
+        self.assertGreater(float(s2[0]["z"]), -4.2, "S2 is above the ramp's end, not under it")
+        self.assertLess(float(s2[0]["z"]), 3.0, "S2 is under the water surface (the hand-off's both-ends-in-water)")
         self.assertLess(math.dist([float(f1[0][c]) for c in ("x", "y", "z")],
                                   [float(s1[0][c]) for c in ("x", "y", "z")]), 60.0, "one cmd move row")
         # kc-cm-fix1 (RUN-LESSONS "bosses 1236 live"): the exporter's old cut row at -11166.4 -1686.7 -30.2 stood
