@@ -1,9 +1,9 @@
 -- Karazhan Crypt (map 800): the whole plan again, with Corpsemuncher 91917 as leg 6 (option A of specs/kc-corpsemuncher.md,
 -- the shaft climb), replacing the karazhan_crypt rows of 20261025002600_world.sql (that file stays as applied; its statements
--- for no other plan are repeated here). Exported from turtle-agent prep/kc-corpsemuncher 21d8a691 (dungeons/karazhan_crypt.json:
+-- for no other plan are repeated here). Exported from turtle-agent prep/kc-corpsemuncher b605d99 (dungeons/karazhan_crypt.json:
 -- origin/prep/kc-water c49eb6c plus leg 6) merged with origin/feat/offmesh-links 2756955 as 20261025002600 was, with the
 -- options of that header:
---   turtle-agent plan-export --dir dungeons --mmaps <map 800 mmaps> --allow-draft --approach-hops --rev 21d8a691 \
+--   turtle-agent plan-export --dir dungeons --mmaps <map 800 mmaps> --allow-draft --approach-hops --rev b605d99 \
 --     --stamp 20261028220000 --out <dir> karazhan_crypt
 -- NO ROW IS HAND-SET. Plan check (turtle-agent plan-check, the server-exact map 800 mmaps, tile 8005334 6a8168b1): "ok, 224 points
 -- on the map 800 navmesh; 1 hops exempted by the plan (check_skip)" (197 points and 0 exempt before; the 27 new points are leg 6;
@@ -33,12 +33,12 @@
 --
 -- Idempotent: each plan's rows are deleted, then inserted. The tables come from 20261014150000_world.sql.
 
--- karazhan_crypt: map 800, 7 legs, 309 steps
+-- karazhan_crypt: map 800, 7 legs, 315 steps
 DELETE FROM `ai_dungeon_step` WHERE `plan` = 'karazhan_crypt';
 DELETE FROM `ai_dungeon_leg` WHERE `plan` = 'karazhan_crypt';
 DELETE FROM `ai_dungeon_plan` WHERE `plan` = 'karazhan_crypt';
 INSERT INTO `ai_dungeon_plan` (`plan`, `map`, `cc_priority`, `cc_always`, `kill_first`, `source`, `comment`) VALUES
-('karazhan_crypt', 800, '', '', '91918,91913,91911,91925', 'turtle-agent 21d8a691 dungeons/karazhan_crypt.json', 'plan v1, draft (reordered 2026-10-25: upper floors, shaft dive, lower crypt last; Corpsemuncher leg 6 by the shaft climb (swim hand-off), probe T0 2026-10-28; not live-checked; hivaxxis reordered after r40 slot5b; lower-crypt pools dry 2026-10-26)');
+('karazhan_crypt', 800, '', '', '91918,91913,91911,91925', 'turtle-agent b605d99 dungeons/karazhan_crypt.json', 'plan v1, draft (reordered 2026-10-25: upper floors, shaft dive, lower crypt last; Corpsemuncher leg 6 by the shaft climb (swim hand-off), probe T0 2026-10-28; not live-checked; hivaxxis reordered after r40 slot5b; lower-crypt pools dry 2026-10-26)');
 INSERT INTO `ai_dungeon_leg` (`plan`, `leg`, `name`, `comment`) VALUES
 ('karazhan_crypt', 0, 'archlich_enkhraz', ''),
 ('karazhan_crypt', 1, 'guard_captain_gort', ''),
@@ -324,36 +324,42 @@ INSERT INTO `ai_dungeon_step` (`plan`, `leg`, `seq`, `kind`, `entry`, `x`, `y`, 
 ('karazhan_crypt', 6, 7, 'move', 0, -11164.532, -1698.4, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
 ('karazhan_crypt', 6, 8, 'move', 0, -11164.266, -1697.0667, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
 ('karazhan_crypt', 6, 9, 'move', 0, -11164.532, -1692.5333, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
-('karazhan_crypt', 6, 10, 'move', 0, -11166.399, -1686.6667, -30.17348, 0, 0, 0, 0, 0, '', 'path'),
-('karazhan_crypt', 6, 11, 'move', 0, -11178.666, -1664, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
-('karazhan_crypt', 6, 12, 'move', 0, -11203.733, -1652, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
-('karazhan_crypt', 6, 13, 'move', 0, -11214.133, -1637.3334, -32.67348, 0, 0, 0, 0, 0, '', 'path'),
-('karazhan_crypt', 6, 14, 'move', 0, -11214.399, -1625.3334, -37.67348, 0, 0, 0, 0, 0, '', 'path'),
-('karazhan_crypt', 6, 15, 'move', 0, -11212.761, -1575.5168, -41.626663, 0, 0, 0, 0, 0, '', 'path'),
-('karazhan_crypt', 6, 16, 'move', 0, -11211.122, -1525.7003, -45.57984, 0, 0, 0, 0, 0, '', 'path'),
-('karazhan_crypt', 6, 17, 'move', 0, -11211, -1522, -45.9, 0, 0, 0, 0, 0, '', 'via'),
-('karazhan_crypt', 6, 18, 'move', 0, -11211, -1516, -3, 0, 0, 0, 0, 0, '', 'via'),
-('karazhan_crypt', 6, 19, 'move', 0, -11211, -1492, 3.6, 0, 0, 0, 0, 0, '', 'to'),
-('karazhan_crypt', 6, 20, 'move', 0, -11211, -1492, 3.6, 0, 0, 0, 0, 0, '', 'pull group 0 approach'),
-('karazhan_crypt', 6, 21, 'pull', 0, -11219.5, -1512.12, -1.46, 5, 0, 0, 1, 0, '91932', 'pull group 0'),
-('karazhan_crypt', 6, 22, 'move', 0, -11206.399, -1497.8667, 1.7265205, 0, 0, 0, 0, 0, '', 'approach path'),
-('karazhan_crypt', 6, 23, 'move', 0, -11205.6, -1496.5333, 3.1265204, 0, 0, 0, 0, 0, '', 'approach path'),
-('karazhan_crypt', 6, 24, 'move', 0, -11206.399, -1494.9333, 3.2265205, 0, 0, 0, 0, 0, '', 'approach path'),
-('karazhan_crypt', 6, 25, 'move', 0, -11209.066, -1489.8667, 3.6265206, 0, 0, 0, 0, 0, '', 'approach path'),
-('karazhan_crypt', 6, 26, 'move', 0, -11209.333, -1486.1334, 3.6265206, 0, 0, 0, 0, 0, '', 'approach path'),
-('karazhan_crypt', 6, 27, 'move', 0, -11209.333, -1484, 3.6265206, 0, 0, 0, 0, 0, '', 'approach path'),
-('karazhan_crypt', 6, 28, 'pull', 0, -11178, -1478.97, 3.58, 10, 0, 0, 1, 0, '91923', 'pull group 1'),
-('karazhan_crypt', 6, 29, 'pull', 0, -11177.9, -1451.03, 1.22, 10, 0, 0, 0, 0, '91910', 'pull group 2'),
-('karazhan_crypt', 6, 30, 'pull', 0, -11189.23, -1433.85, 1.05, 16.5, 0, 0, 0, 0, '91926,91924', 'pull group 3'),
-('karazhan_crypt', 6, 31, 'pull', 0, -11209.93, -1452.22, 1.84, 20, 0, 0, 0, 0, '91924,91926', 'pull group 4'),
-('karazhan_crypt', 6, 32, 'pull', 0, -11222.1, -1472.57, 3.58, 10, 0, 0, 0, 0, '91911', 'pull group 5'),
-('karazhan_crypt', 6, 33, 'pull', 0, -11241.67, -1452.07, 2.33, 19.9, 0, 0, 0, 0, '91924,91926', 'pull group 6'),
-('karazhan_crypt', 6, 34, 'pull', 0, -11256.7, -1434.08, 1.37, 12, 0, 0, 0, 0, '91924,91926', 'pull group 7'),
-('karazhan_crypt', 6, 35, 'pull', 0, -11260.4, -1417.01, -0.03, 14.4, 0, 0, 0, 0, '91924,91926', 'pull group 8'),
-('karazhan_crypt', 6, 36, 'pull', 0, -11259.6, -1394.19, -0.08, 10, 0, 0, 0, 0, '91924', 'pull group 9'),
-('karazhan_crypt', 6, 37, 'move', 0, -11264, -1408, 0.42652047, 0, 0, 0, 0, 0, '', 'approach path'),
-('karazhan_crypt', 6, 38, 'pull', 0, -11266.7, -1453.24, 2.75, 10, 0, 0, 0, 0, '91910', 'pull group 10'),
-('karazhan_crypt', 6, 39, 'pull', 0, -11265.4, -1481.66, 3.58, 10, 0, 0, 1, 0, '91923', 'pull group 11'),
-('karazhan_crypt', 6, 40, 'move', 0, -11230.576, -1445.836, 1.6439179, 0, 0, 0, 0, 0, '', 'approach path'),
-('karazhan_crypt', 6, 41, 'pull', 0, -11187.73, -1401.76, -0.93, 19.6, 0, 0, 0, 0, '91924,91926', 'pull group 12'),
-('karazhan_crypt', 6, 42, 'boss', 91917, -11223.5, -1406.58, -15.426, 0, 0, 0, 0, 0, '', 'boss');
+('karazhan_crypt', 6, 10, 'move', 0, -11177.865, -1670.1334, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 11, 'move', 0, -11178.666, -1669.8667, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 12, 'move', 0, -11194.933, -1669.3334, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 13, 'move', 0, -11199.199, -1669.3334, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 14, 'move', 0, -11210.399, -1688.2667, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 15, 'move', 0, -11211, -1689, -28.5, 0, 0, 0, 0, 0, '', 'via'),
+('karazhan_crypt', 6, 16, 'move', 0, -11210.399, -1688.2667, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 17, 'move', 0, -11210.399, -1685.3334, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 18, 'move', 0, -11210.666, -1672, -28.47348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 19, 'move', 0, -11214.133, -1637.3334, -32.67348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 20, 'move', 0, -11214.399, -1625.3334, -37.67348, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 21, 'move', 0, -11212.761, -1575.5168, -41.626663, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 22, 'move', 0, -11211.122, -1525.7003, -45.57984, 0, 0, 0, 0, 0, '', 'path'),
+('karazhan_crypt', 6, 23, 'move', 0, -11211, -1522, -45.9, 0, 0, 0, 0, 0, '', 'via'),
+('karazhan_crypt', 6, 24, 'move', 0, -11211, -1516, -3, 0, 0, 0, 0, 0, '', 'via'),
+('karazhan_crypt', 6, 25, 'move', 0, -11211, -1492, 3.6, 0, 0, 0, 0, 0, '', 'to'),
+('karazhan_crypt', 6, 26, 'move', 0, -11211, -1492, 3.6, 0, 0, 0, 0, 0, '', 'pull group 0 approach'),
+('karazhan_crypt', 6, 27, 'pull', 0, -11219.5, -1512.12, -1.46, 5, 0, 0, 1, 0, '91932', 'pull group 0'),
+('karazhan_crypt', 6, 28, 'move', 0, -11206.399, -1497.8667, 1.7265205, 0, 0, 0, 0, 0, '', 'approach path'),
+('karazhan_crypt', 6, 29, 'move', 0, -11205.6, -1496.5333, 3.1265204, 0, 0, 0, 0, 0, '', 'approach path'),
+('karazhan_crypt', 6, 30, 'move', 0, -11206.399, -1494.9333, 3.2265205, 0, 0, 0, 0, 0, '', 'approach path'),
+('karazhan_crypt', 6, 31, 'move', 0, -11209.066, -1489.8667, 3.6265206, 0, 0, 0, 0, 0, '', 'approach path'),
+('karazhan_crypt', 6, 32, 'move', 0, -11209.333, -1486.1334, 3.6265206, 0, 0, 0, 0, 0, '', 'approach path'),
+('karazhan_crypt', 6, 33, 'move', 0, -11209.333, -1484, 3.6265206, 0, 0, 0, 0, 0, '', 'approach path'),
+('karazhan_crypt', 6, 34, 'pull', 0, -11178, -1478.97, 3.58, 10, 0, 0, 1, 0, '91923', 'pull group 1'),
+('karazhan_crypt', 6, 35, 'pull', 0, -11177.9, -1451.03, 1.22, 10, 0, 0, 0, 0, '91910', 'pull group 2'),
+('karazhan_crypt', 6, 36, 'pull', 0, -11189.23, -1433.85, 1.05, 16.5, 0, 0, 0, 0, '91926,91924', 'pull group 3'),
+('karazhan_crypt', 6, 37, 'pull', 0, -11209.93, -1452.22, 1.84, 20, 0, 0, 0, 0, '91924,91926', 'pull group 4'),
+('karazhan_crypt', 6, 38, 'pull', 0, -11222.1, -1472.57, 3.58, 10, 0, 0, 0, 0, '91911', 'pull group 5'),
+('karazhan_crypt', 6, 39, 'pull', 0, -11241.67, -1452.07, 2.33, 19.9, 0, 0, 0, 0, '91924,91926', 'pull group 6'),
+('karazhan_crypt', 6, 40, 'pull', 0, -11256.7, -1434.08, 1.37, 12, 0, 0, 0, 0, '91924,91926', 'pull group 7'),
+('karazhan_crypt', 6, 41, 'pull', 0, -11260.4, -1417.01, -0.03, 14.4, 0, 0, 0, 0, '91924,91926', 'pull group 8'),
+('karazhan_crypt', 6, 42, 'pull', 0, -11259.6, -1394.19, -0.08, 10, 0, 0, 0, 0, '91924', 'pull group 9'),
+('karazhan_crypt', 6, 43, 'move', 0, -11264, -1408, 0.42652047, 0, 0, 0, 0, 0, '', 'approach path'),
+('karazhan_crypt', 6, 44, 'pull', 0, -11266.7, -1453.24, 2.75, 10, 0, 0, 0, 0, '91910', 'pull group 10'),
+('karazhan_crypt', 6, 45, 'pull', 0, -11265.4, -1481.66, 3.58, 10, 0, 0, 1, 0, '91923', 'pull group 11'),
+('karazhan_crypt', 6, 46, 'move', 0, -11230.576, -1445.836, 1.6439179, 0, 0, 0, 0, 0, '', 'approach path'),
+('karazhan_crypt', 6, 47, 'pull', 0, -11187.73, -1401.76, -0.93, 19.6, 0, 0, 0, 0, '91924,91926', 'pull group 12'),
+('karazhan_crypt', 6, 48, 'boss', 91917, -11223.5, -1406.58, -15.426, 0, 0, 0, 0, 0, '', 'boss');
