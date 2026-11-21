@@ -114,9 +114,11 @@ namespace ai
             return "This action logs an item the bot won from a group-loot roll.\n";
         }
         virtual std::vector<std::string> GetUsedActions() { return {}; }
-        virtual std::vector<std::string> GetUsedValues() { return {}; }
+        virtual std::vector<std::string> GetUsedValues() { return { "pending won loot" }; }
 #endif
     };
+
+    bool ServicePendingWonLoot(PlayerbotAI* ai, bool explicitPlayerOrder = false);
 
     class AutoLootRollAction : public RollAction
     {

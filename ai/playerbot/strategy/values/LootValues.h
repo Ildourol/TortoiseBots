@@ -273,4 +273,34 @@ namespace ai
         virtual std::vector<std::string> GetUsedValues() { return { }; }
 #endif
     };
+
+    struct PendingWonLootEntry
+    {
+        ObjectGuid lootGuid;
+        uint32 itemId = 0;
+        uint32 itemCount = 1;
+        int32 randomPropertyId = 0;
+        time_t wonAt = 0;
+        bool announcedFullBags = false;
+        bool queuedForLoot = false;
+    };
+
+    typedef std::vector<PendingWonLootEntry> PendingWonLootList;
+
+    class PendingWonLoot : public ManualSetValue<PendingWonLootList>
+    {
+    public:
+        PendingWonLoot(PlayerbotAI* ai) : ManualSetValue(ai, {}, "pending won loot") {}
+        virtual std::string Format() override;
+
+#ifdef GenerateBotHelp
+        virtual std::string GetHelpName() { return "pending won loot"; } //Must equal internal name
+        virtual std::string GetHelpTypeName() { return "loot"; }
+        virtual std::string GetHelpDescription()
+        {
+            return "Items won from a group-loot roll that stayed on the corpse or chest because the bot's bags were full.";
+        }
+        virtual std::vector<std::string> GetUsedValues() { return { }; }
+#endif
+    };
 }

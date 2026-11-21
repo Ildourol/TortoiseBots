@@ -71,6 +71,7 @@ bool LootAction::Execute(Event& event)
         bot->GetName(), lootObject.guid.GetRawValue(), prevLoot.guid.GetRawValue(), released ? 1 : 0);
 
     context->GetValue<LootObject>("loot target")->Set(lootObject);
+    RESET_AI_VALUE(bool, "can loot");
     return true;
 }
 
@@ -107,6 +108,7 @@ bool OpenLootAction::Execute(Event& event)
                 !ordered && TortoiseBots::BotCommands::IsInCommandedGroup(bot), ordered))
         {
             context->GetValue<LootObject>("loot target")->Set(LootObject());
+            RESET_AI_VALUE(bool, "can loot");
             return false;
         }
     }
@@ -151,6 +153,7 @@ bool OpenLootAction::Execute(Event& event)
         if (lootStack)
             lootStack->Remove(lootGuid);
         context->GetValue<LootObject>("loot target")->Set(LootObject());
+        RESET_AI_VALUE(bool, "can loot");
         return true;
     }
 
@@ -160,6 +163,7 @@ bool OpenLootAction::Execute(Event& event)
             bot->GetName(), lootGuid.GetRawValue());
         lootStack->Remove(lootGuid);
         context->GetValue<LootObject>("loot target")->Set(LootObject());
+        RESET_AI_VALUE(bool, "can loot");
     }
     return false;
 }
@@ -673,6 +677,19 @@ bool StoreLootAction::Execute(Event& event)
 			continue;
 		}
 
+        ItemPrototype const *proto = sItemStorage.LookupEntry<ItemPrototype>(itemid);
+        if (!proto)
+            continue;
+
+        QuestItem* qitem = nullptr;
+        QuestItem* ffaitem = nullptr;
+        LootItem* lootItem = loot->LootItemInSlot(itemindex, bot->GetGUIDLow(), &qitem, &ffaitem);
+        if (!lootItem)
+            continue;
+
+        bool const wonItem = !lootItem->is_looted && !lootItem->is_blocked &&
+            lootItem->lootOwner == bot->GetObjectGuid();
+
         if (commanderOrder)
         {
             if (!TortoiseBots::RemoteCommander::LootItemWanted(orderedItem, itemid))
@@ -681,7 +698,8 @@ bool StoreLootAction::Execute(Event& event)
             if (!orderedProto || (orderedProto->MaxCount > 0 && bot->HasItemCount(itemid, orderedProto->MaxCount, true)))
                 continue;
         }
-        else if (!ai::ShouldSkipLootFilter((uint32)internalLootType, guid.IsGameObject(), gatherSkill) &&
+        else if (!wonItem &&
+            !ai::ShouldSkipLootFilter((uint32)internalLootType, guid.IsGameObject(), gatherSkill) &&
             !IsLootAllowed(itemQualifier, ai))
         {
             // A Working skin order needs the corpse empty before the
@@ -694,7 +712,16 @@ bool StoreLootAction::Execute(Event& event)
             }
         }
 
-        if (AI_VALUE2(uint32, "stack space for item", itemid) < itemcount)
+        if (wonItem)
+        {
+            ItemPosCountVec dest;
+            if (bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemid, itemcount) != EQUIP_ERR_OK)
+            {
+                sLog.outDebug("[BOT LOOT] %s: skip won item=%u (CanStoreNewItem failed, need=%u)", bot->GetName(), itemid, itemcount);
+                continue;
+            }
+        }
+        else if (AI_VALUE2(uint32, "stack space for item", itemid) < itemcount)
         {
             sLog.outDebug("[BOT LOOT] %s: skip item=%u (no stack space, need=%u)", bot->GetName(), itemid, itemcount);
             std::optional<TortoiseBots::GuildOrders::OrderRecord> order =
@@ -704,16 +731,6 @@ bool StoreLootAction::Execute(Event& event)
                 TortoiseBots::GuildOrders::NoteBagsFull(bot->GetGUIDLow());
             continue;
         }
-
-        ItemPrototype const *proto = sItemStorage.LookupEntry<ItemPrototype>(itemid);
-        if (!proto)
-            continue;
-
-        QuestItem* qitem = nullptr;
-        QuestItem* ffaitem = nullptr;
-        LootItem* lootItem = loot->LootItemInSlot(itemindex, bot->GetGUIDLow(), &qitem, &ffaitem);
-        if (!lootItem)
-            continue;
 
         WorldObject const* lootTarget = loot ? loot->GetLootTarget() : nullptr;
         bool const personal = qitem || ffaitem;
@@ -737,13 +754,31 @@ bool StoreLootAction::Execute(Event& event)
 
         WorldPacket packet(CMSG_AUTOSTORE_LOOT_ITEM, 1);
         packet << itemindex;
-        uint32 const countBefore = commanderOrder ? bot->GetItemCount(itemid) : 0;
+        uint32 const countBefore = bot->GetItemCount(itemid);
         bot->GetSession()->HandleAutostoreLootItemOpcode(packet);
+        uint32 const countAfter = bot->GetItemCount(itemid);
+        bool const stored = lootItem->is_looted || countAfter > countBefore;
+        if (!stored)
+            continue;
         ++itemsTaken;
+        if (wonItem)
+        {
+            PendingWonLootList pending = AI_VALUE(PendingWonLootList, "pending won loot");
+            if (!pending.empty())
+            {
+                for (auto itr = pending.begin(); itr != pending.end();)
+                {
+                    if (itr->lootGuid == guid && itr->itemId == itemid)
+                        itr = pending.erase(itr);
+                    else
+                        ++itr;
+                }
+                SET_AI_VALUE(PendingWonLootList, "pending won loot", pending);
+            }
+        }
         if (commanderOrder)
         {
             // Only what really reached the bags counts (the core refuses a full bag or a unique item).
-            uint32 const countAfter = bot->GetItemCount(itemid);
             if (countAfter > countBefore)
                 TortoiseBots::RemoteCommander::LootOrders().NoteItem(botRaw, guid.GetRawValue(), itemid,
                     std::min(itemcount, countAfter - countBefore));

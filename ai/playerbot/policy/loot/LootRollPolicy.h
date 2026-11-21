@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace ai
@@ -148,5 +149,111 @@ namespace ai
             return LootRollVote::Greed;
 
         return vote;
+    }
+
+    // How long a won roll item that stayed on the corpse or chest because the
+    // winner's bags were full is remembered for pickup before giving up
+    // (matches LOOT_OBJECT_TTL_SECONDS).
+    inline constexpr std::int64_t kWonLootPendingTimeoutSec = 180;
+
+    inline bool WonLootPendingExpired(std::int64_t wonAtSec, std::int64_t nowSec)
+    {
+        return wonAtSec <= 0 || (nowSec - wonAtSec) >= kWonLootPendingTimeoutSec;
+    }
+
+    // Group::CountTheRoll sends SMSG_LOOT_ROLL_WON before attempting to store
+    // the won item. When the winner's bags cannot fit it, the item stays on
+    // the corpse or chest with lootOwner set to the winner. If the loot
+    // container can be inspected directly, its unlooted lootOwner entry is the
+    // ground truth (an item that took the last free bag slot is already looted,
+    // even though bags are now full afterwards); otherwise fall back to whether
+    // the item could be stored right now.
+    inline bool WonLootNeedsPendingPickup(bool winnerIsSelf, bool sourceInspected,
+        bool stillOnSourceForWinner, bool canStoreInBags)
+    {
+        if (!winnerIsSelf)
+            return false;
+        if (sourceInspected)
+            return stillOnSourceForWinner;
+        return !canStoreInBags;
+    }
+
+    // Raw ItemUsage values (ItemUsageValue.h) that represent vendor/junk-like
+    // items and may be discarded to make room for a won loot roll:
+    //   ITEM_USAGE_NONE = 0, ITEM_USAGE_AH = 9,
+    //   ITEM_USAGE_BROKEN_AH = 10, ITEM_USAGE_VENDOR = 12.
+    inline bool IsWonLootDisposableUsage(std::uint8_t usage)
+    {
+        return usage == 0 || usage == 9 || usage == 10 || usage == 12;
+    }
+
+    struct WonLootReliefCandidate
+    {
+        std::uint8_t bag = 0;
+        std::uint8_t slot = 0;
+        std::uint32_t itemId = 0;
+        std::uint32_t quality = 0;        // 0 = ITEM_QUALITY_POOR (grey)
+        std::uint32_t stackSellValue = 0; // SellPrice * stack count
+        std::uint8_t usage = 0;           // raw ItemUsage
+        bool bagFitsWonItem = true;
+        bool hasForceUsage = false;
+        bool isGuildOrderStock = false;
+        bool isQuestItem = false;
+        bool isBag = false;
+        bool isAmmo = false;
+        bool isReagentOrConsumableUsed = false;
+        bool isProfessionTool = false;
+        bool isHearthstone = false;
+        bool isKey = false;
+    };
+
+    inline bool IsWonLootReliefEligible(WonLootReliefCandidate const& c, bool isAutonomousAlt)
+    {
+        if (isAutonomousAlt || c.itemId == 0 || !c.bagFitsWonItem)
+            return false;
+        if (c.hasForceUsage || c.isGuildOrderStock || c.isQuestItem || c.isBag ||
+            c.isAmmo || c.isReagentOrConsumableUsed || c.isProfessionTool ||
+            c.isHearthstone || c.isKey)
+            return false;
+        return IsWonLootDisposableUsage(c.usage);
+    }
+
+    // Picks the single bag slot to destroy next to make room for a won roll,
+    // or -1 when no slot may be touched. Grey items (quality == 0) always go
+    // first, cheapest stack first; only if no grey item is eligible does it
+    // pick the lowest-vendor-value non-critical item (ties broken by quality).
+    inline int SelectWonLootReliefIndex(WonLootReliefCandidate const* candidates,
+        std::size_t count, bool isAutonomousAlt)
+    {
+        int best = -1;
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            WonLootReliefCandidate const& cur = candidates[i];
+            if (!IsWonLootReliefEligible(cur, isAutonomousAlt))
+                continue;
+            if (best < 0)
+            {
+                best = static_cast<int>(i);
+                continue;
+            }
+            WonLootReliefCandidate const& prev = candidates[best];
+            bool const curGrey = (cur.quality == 0);
+            bool const prevGrey = (prev.quality == 0);
+            if (curGrey != prevGrey)
+            {
+                if (curGrey)
+                    best = static_cast<int>(i);
+                continue;
+            }
+            if (cur.stackSellValue != prev.stackSellValue)
+            {
+                if (cur.stackSellValue < prev.stackSellValue)
+                    best = static_cast<int>(i);
+                continue;
+            }
+            if (cur.quality < prev.quality)
+                best = static_cast<int>(i);
+        }
+        return best;
     }
 }

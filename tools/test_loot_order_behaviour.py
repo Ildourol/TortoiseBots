@@ -393,6 +393,10 @@ namespace ChatHelper
 }
 
 #define AI_VALUE(type, name) ai->Value<type>(name)
+#define RESET_AI_VALUE(type, name) ((void)0)
+#define RESET_AI_VALUE2(type, name, param) ((void)0)
+
+inline bool ServicePendingWonLoot(PlayerbotAI*, bool = false) { return false; }
 
 using namespace ai;
 
