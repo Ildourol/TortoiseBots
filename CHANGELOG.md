@@ -196,6 +196,29 @@
 - Fixed: the totem focus no longer cuts a cast already aimed at the totem it focuses.
 - taunt_after_cast now runs on AuraTactics alone (AiPlayerbot.DungeonRunCharmYield is no longer needed).
 
+## v1.30.0 (2026-11-21)
+
+### Classes & Combat
+- Protection paladins now use Seal of Wisdom in dungeons so they don't run dry between pulls. [#1671](https://github.com/Sagiroth/TortoiseBots/pull/1671)
+- Paladin bots now keep Judgement of Wisdom up even when no other paladin is in the party. [#1671](https://github.com/Sagiroth/TortoiseBots/pull/1671)
+- Holy paladins now use Holy Strike instead of only standing back and healing. [#1671](https://github.com/Sagiroth/TortoiseBots/pull/1671)
+
+### Groups & Dungeons
+- Resuming a paused bot-led dungeon run no longer makes the tank walk back to the entrance. [#1671](https://github.com/Sagiroth/TortoiseBots/pull/1671)
+- Bots that win a roll with full bags now remember the item and come back for it. [#1674](https://github.com/Sagiroth/TortoiseBots/pull/1674)
+- To make room, a bot destroys its cheapest grey item first and never destroys quest or kept items. [#1674](https://github.com/Sagiroth/TortoiseBots/pull/1674)
+
+### World & Economy
+- Gathering bots no longer stop when their bags are completely full. [#1671](https://github.com/Sagiroth/TortoiseBots/pull/1671)
+
+### Dashboard
+- The dashboard now works when the server runs inside a container. [#1671](https://github.com/Sagiroth/TortoiseBots/pull/1671)
+
+### Behind the scenes
+- Confirmed the contribution licence for one contributor. [#1670](https://github.com/Sagiroth/TortoiseBots/pull/1670)
+
+---
+
 ## v1.29.3 (2026-11-20)
 
 ### Dashboard
