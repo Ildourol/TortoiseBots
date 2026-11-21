@@ -13,6 +13,19 @@ namespace ai
         return creature->HasFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE) || bot->IsAllowedToLoot(creature);
     }
 
+    // True when a group-loot roll item won by this viewer could not fit in
+    // their bags and is still sitting on the corpse or chest reserved for them.
+    inline bool HasWonLootFor(Loot const& loot, Player const* viewer)
+    {
+        if (!viewer)
+            return false;
+        ObjectGuid const me = viewer->GetObjectGuid();
+        for (LootItem const& item : loot.items)
+            if (!item.is_looted && !item.is_blocked && item.lootOwner == me)
+                return true;
+        return false;
+    }
+
     // Loot::hasItemFor, restricted to the copies the core will actually show this viewer.
     inline bool HasVisiblePersonalItemFor(Loot const& loot, Player* viewer)
     {

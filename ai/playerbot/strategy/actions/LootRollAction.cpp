@@ -7,6 +7,10 @@
 #include "playerbot/strategy/values/ItemUsageValue.h"
 #include "playerbot/RandomItemMgr.h"
 #include "playerbot/strategy/values/LootValues.h"
+#include "playerbot/strategy/ItemVisitors.h"
+#include "playerbot/LootObjectStack.h"
+#include "playerbot/policy/quest/QuestLogPolicy.h"
+#include "../../../runtime/policy/provision/GatherToolPolicy.h"
 #include "../../../runtime/HireLifecycle.h"
 #include "../../../runtime/policy/hire/HireLootPolicy.h"
 #include "../../../../runtime/AltBotService.h"
@@ -14,7 +18,13 @@
 #include "playerbot/GroupMembers.h"
 #include "Group/Group.h"
 #include "Maps/Map.h"
+#include "Objects/Item.h"
 using namespace ai;
+
+static_assert(static_cast<uint8>(ItemUsage::ITEM_USAGE_NONE) == 0, "ItemUsage::ITEM_USAGE_NONE drifted from LootRollPolicy");
+static_assert(static_cast<uint8>(ItemUsage::ITEM_USAGE_AH) == 9, "ItemUsage::ITEM_USAGE_AH drifted from LootRollPolicy");
+static_assert(static_cast<uint8>(ItemUsage::ITEM_USAGE_BROKEN_AH) == 10, "ItemUsage::ITEM_USAGE_BROKEN_AH drifted from LootRollPolicy");
+static_assert(static_cast<uint8>(ItemUsage::ITEM_USAGE_VENDOR) == 12, "ItemUsage::ITEM_USAGE_VENDOR drifted from LootRollPolicy");
 
 namespace
 {
@@ -1022,13 +1032,267 @@ bool AutoLootRollAction::isPossible()
     return bot->GetGroup() && !AI_VALUE(LootRollMap, "active rolls").empty() && AI_VALUE(uint8, "bag space") < 100;
 }
 
+namespace
+{
+    bool IsProfessionToolForRelief(PlayerbotAI* ai, ItemPrototype const* proto)
+    {
+        if (!proto)
+            return false;
+
+        uint32 const itemId = proto->ItemId;
+        if (ItemUsageValue::IsCraftingTool(itemId))
+            return true;
+
+        if (proto->Class == ITEM_CLASS_WEAPON && proto->SubClass == ITEM_SUBCLASS_WEAPON_FISHING_POLE)
+            return ai->HasSkill(SKILL_FISHING);
+
+        if (TortoiseBots::HasAnyTool([itemId](uint32 id) { return id == itemId; }, TortoiseBots::kMiningPickIds) ||
+            TortoiseBots::HasAnyTool([itemId](uint32 id) { return id == itemId; }, TortoiseBots::kSkinningKnifeIds))
+            return true;
+
+        switch (itemId)
+        {
+        case 2901:  // Mining Pick
+        case 5956:  // Blacksmith Hammer
+        case 6219:  // Arclight Spanner
+        case 6218:  // Runed Copper Rod
+        case 6339:  // Runed Silver Rod
+        case 11130: // Runed Golden Rod
+        case 11145: // Runed Truesilver Rod
+        case 16207: // Runed Arcanite Rod
+        case 7005:  // Skinning Knife
+        case 4471:  // Flint and Tinder
+        case 4470:  // Simple Wood
+        case 6256:  // Fishing Pole
+        case 5060:  // Thieves' Tools
+        case 9149:  // Philosopher's Stone
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    WonLootReliefCandidate BuildReliefCandidate(PlayerbotAI* ai, Player* bot, Item* item, bool bagFitsWonItem)
+    {
+        WonLootReliefCandidate c;
+        ItemPrototype const* proto = item ? item->GetProto() : nullptr;
+        if (!proto)
+            return c;
+
+        AiObjectContext* context = ai->GetAiObjectContext();
+        ItemQualifier qualifier(item);
+        ItemUsage const usage = AI_VALUE2(ItemUsage, "item usage", qualifier.GetQualifier());
+        ForceItemUsage const forceUsage = AI_VALUE2_EXISTS(ForceItemUsage, "force item usage", proto->ItemId, ForceItemUsage::FORCE_USAGE_NONE);
+
+        c.bag = item->GetBagSlot();
+        c.slot = item->GetSlot();
+        c.itemId = proto->ItemId;
+        c.quality = proto->Quality;
+        c.stackSellValue = proto->SellPrice * item->GetCount();
+        c.usage = static_cast<uint8>(usage);
+        c.bagFitsWonItem = bagFitsWonItem;
+        c.hasForceUsage = HAS_AI_VALUE2("force item usage", proto->ItemId) && forceUsage != ForceItemUsage::FORCE_USAGE_NONE;
+        c.isGuildOrderStock = bot->GetGuildId() != 0 && GuildOrderConsumesItem(bot, proto->ItemId);
+        c.isQuestItem = proto->ItemId != ai::kBoneChewToyItemId &&
+            (proto->Class == ITEM_CLASS_QUEST || proto->StartQuest != 0 ||
+             proto->Bonding == BIND_QUEST_ITEM || proto->Bonding == BIND_QUEST_ITEM1 ||
+             ItemUsageValue::IsNeededForQuest(bot, proto->ItemId, true) ||
+             (ai->GetMaster() && sPlayerbotAIConfig.syncQuestWithPlayer &&
+              ItemUsageValue::IsNeededForQuest(ai->GetMaster(), proto->ItemId, true)));
+        c.isBag = proto->Class == ITEM_CLASS_CONTAINER || proto->Class == ITEM_CLASS_QUIVER;
+        c.isAmmo = proto->Class == ITEM_CLASS_PROJECTILE ||
+            (proto->Class == ITEM_CLASS_WEAPON && proto->SubClass == ITEM_SUBCLASS_WEAPON_THROWN);
+        c.isKey = proto->Class == ITEM_CLASS_KEY || (proto->BagFamily & BAG_FAMILY_KEYS) != 0;
+        c.isHearthstone = proto->ItemId == 6948;
+        c.isProfessionTool = IsProfessionToolForRelief(ai, proto);
+        c.isReagentOrConsumableUsed =
+            usage == ItemUsage::ITEM_USAGE_USE ||
+            usage == ItemUsage::ITEM_USAGE_KEEP ||
+            usage == ItemUsage::ITEM_USAGE_SKILL ||
+            (proto->Class == ITEM_CLASS_REAGENT && !ItemUsageValue::SpellsUsingItem(proto->ItemId, bot).empty());
+        return c;
+    }
+
+    bool MakeRoomForWonLoot(PlayerbotAI* ai, Player* bot, uint32 wonItemId, uint32 wonCount, int32 wonRandomProp)
+    {
+        ItemPosCountVec dest;
+        if (bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, wonItemId, wonCount) == EQUIP_ERR_OK)
+            return true;
+
+        bool const isAutonomousAlt = TortoiseBots::AltBotService::Instance().IsAutonomous(bot->GetObjectGuid());
+        if (isAutonomousAlt)
+            return false;
+
+        ItemPrototype const* wonProto = sItemStorage.LookupEntry<ItemPrototype>(wonItemId);
+        ItemQualifier wonQualifier(wonItemId, wonRandomProp);
+        AiObjectContext* context = ai->GetAiObjectContext();
+
+        while (bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, wonItemId, wonCount) != EQUIP_ERR_OK)
+        {
+            std::vector<WonLootReliefCandidate> candidates;
+            for (int slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
+            {
+                Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+                if (!item || !item->GetProto() || item->GetProto()->ItemId == wonItemId)
+                    continue;
+                candidates.push_back(BuildReliefCandidate(ai, bot, item, true));
+            }
+
+            for (int bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+            {
+                Bag* bag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, bagSlot);
+                if (!bag || !bag->GetProto())
+                    continue;
+                bool const bagFits = !wonProto || ItemCanGoIntoBag(wonProto, bag->GetProto());
+                for (uint32 slot = 0; slot < bag->GetBagSize(); ++slot)
+                {
+                    Item* item = bag->GetItemByPos(slot);
+                    if (!item || !item->GetProto() || item->GetProto()->ItemId == wonItemId)
+                        continue;
+                    candidates.push_back(BuildReliefCandidate(ai, bot, item, bagFits));
+                }
+            }
+
+            int const pick = SelectWonLootReliefIndex(candidates.data(), candidates.size(), isAutonomousAlt);
+            if (pick < 0)
+                break;
+
+            WonLootReliefCandidate const& chosen = candidates[pick];
+            Item* toDestroy = bot->GetItemByPos(chosen.bag, chosen.slot);
+            if (!toDestroy)
+                break;
+
+            ItemQualifier destroyedQualifier(toDestroy);
+            bot->DestroyItem(chosen.bag, chosen.slot, true);
+            RESET_AI_VALUE(uint8, "bag space");
+
+            Player* recipient = ai->GetMaster() ? ai->GetMaster() : bot;
+            ai->TellPlayerNoFacing(recipient,
+                "Destroyed " + ChatHelper::formatItem(destroyedQualifier) + " to make room for " + ChatHelper::formatItem(wonQualifier),
+                PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false, false);
+        }
+
+        return bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, wonItemId, wonCount) == EQUIP_ERR_OK;
+    }
+
+    bool FindPendingWonLootOnSource(Loot const* loot, ObjectGuid winnerGuid, uint32 itemId, uint32& countOut)
+    {
+        if (!loot)
+            return false;
+
+        for (LootItem const& item : loot->items)
+        {
+            if (!item.is_looted && !item.is_blocked && item.itemid == itemId && item.lootOwner == winnerGuid)
+            {
+                countOut = item.count ? item.count : 1;
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+bool ai::ServicePendingWonLoot(PlayerbotAI* ai, bool explicitPlayerOrder)
+{
+    if (!ai)
+        return false;
+
+    Player* bot = ai->GetBot();
+    AiObjectContext* context = ai->GetAiObjectContext();
+    if (!bot || !context)
+        return false;
+
+    PendingWonLootList pending = AI_VALUE(PendingWonLootList, "pending won loot");
+    if (pending.empty())
+        return false;
+
+    time_t const now = time(nullptr);
+    bool queuedAny = false;
+
+    for (auto itr = pending.begin(); itr != pending.end();)
+    {
+        if (WonLootPendingExpired(itr->wonAt, now))
+        {
+            itr = pending.erase(itr);
+            continue;
+        }
+
+        if (itr->lootGuid.IsCreature())
+        {
+            Creature* creature = ai->GetCreature(itr->lootGuid);
+            if (!creature || sServerFacade.GetDeathState(creature) != CORPSE)
+            {
+                itr = pending.erase(itr);
+                continue;
+            }
+        }
+        else if (itr->lootGuid.IsGameObject())
+        {
+            GameObject* go = ai->GetGameObject(itr->lootGuid);
+            if (!go || !sServerFacade.isSpawned(go))
+            {
+                itr = pending.erase(itr);
+                continue;
+            }
+        }
+
+        Loot* loot = sLootMgr.GetLoot(bot, itr->lootGuid);
+        uint32 liveCount = itr->itemCount ? itr->itemCount : 1;
+        if (!loot || !FindPendingWonLootOnSource(loot, bot->GetObjectGuid(), itr->itemId, liveCount))
+        {
+            itr = pending.erase(itr);
+            continue;
+        }
+        itr->itemCount = liveCount;
+
+        if (!MakeRoomForWonLoot(ai, bot, itr->itemId, itr->itemCount, itr->randomPropertyId))
+        {
+            if (!itr->announcedFullBags)
+            {
+                ItemQualifier wonQualifier(itr->itemId, itr->randomPropertyId);
+                Player* recipient = ai->GetMaster() ? ai->GetMaster() : bot;
+                ai->TellPlayerNoFacing(recipient,
+                    "I won " + ChatHelper::formatItem(wonQualifier) + " but my bags are full - make room and tell me to loot",
+                    PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false, false);
+                itr->announcedFullBags = true;
+            }
+            ++itr;
+            continue;
+        }
+
+        RESET_AI_VALUE(uint8, "bag space");
+        RESET_AI_VALUE2(uint32, "stack space for item", std::to_string(itr->itemId));
+        RESET_AI_VALUE2(bool, "should loot object", std::to_string(itr->lootGuid.GetRawValue()));
+
+        LootObjectStack* lootStack = AI_VALUE(LootObjectStack*, "available loot");
+        if (lootStack)
+        {
+            if (!itr->queuedForLoot || explicitPlayerOrder)
+            {
+                lootStack->NotePlayerOrder(itr->lootGuid);
+                itr->queuedForLoot = true;
+            }
+            lootStack->Add(itr->lootGuid, true);
+        }
+
+        RESET_AI_VALUE(bool, "has available loot");
+        RESET_AI_VALUE(bool, "can loot");
+        queuedAny = true;
+        ++itr;
+    }
+
+    SET_AI_VALUE(PendingWonLootList, "pending won loot", pending);
+    return queuedAny;
+}
+
 bool RollWonLogAction::Execute(Event& event)
 {
     // SMSG_LOOT_ROLL_WON layout (Group::SendLootRollWon): [looted guid][slot]
     // [item id][randomSuffix:0][randomPropertyId][winner guid][roll][type].
-    // It reaches every roller, so only the winner logs; the core also stores
-    // the item in the winner's bags before this packet goes out (Group::
-    // CountTheRoll), so no re-fetch or ownership check is needed here.
+    // Group::CountTheRoll sends this packet before attempting to store the item
+    // in the winner's bags; when the bags cannot hold it, the core leaves the
+    // item on the corpse or chest with lootOwner set to the winner so the
+    // winner can free a slot and loot it afterwards.
     WorldPacket p(event.GetPacket());
     p.rpos(0);
     ObjectGuid lootGuid;
@@ -1052,5 +1316,58 @@ bool RollWonLogAction::Execute(Event& event)
 
     ItemQualifier itemQualifier(itemId, (int32)randomPropertyId);
     sPlayerbotAIConfig.logEvent(ai, "RollWon", proto->Name1, std::to_string(itemId));
+
+    Loot* loot = sLootMgr.GetLoot(bot, lootGuid);
+    uint32 itemCount = 1;
+    bool const sourceInspected = (loot != nullptr);
+    bool stillOnSource = false;
+    if (loot)
+    {
+        if (slot < loot->items.size())
+        {
+            LootItem const& slotItem = loot->items[slot];
+            if (!slotItem.is_looted && !slotItem.is_blocked && slotItem.itemid == itemId &&
+                slotItem.lootOwner == bot->GetObjectGuid())
+            {
+                stillOnSource = true;
+                itemCount = slotItem.count ? slotItem.count : 1;
+            }
+        }
+        if (!stillOnSource)
+            stillOnSource = FindPendingWonLootOnSource(loot, bot->GetObjectGuid(), itemId, itemCount);
+    }
+
+    ItemPosCountVec dest;
+    bool const canStoreNow = bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemId, itemCount) == EQUIP_ERR_OK;
+    if (WonLootNeedsPendingPickup(true, sourceInspected, stillOnSource, canStoreNow))
+    {
+        PendingWonLootList pending = AI_VALUE(PendingWonLootList, "pending won loot");
+        bool found = false;
+        for (PendingWonLootEntry& entry : pending)
+        {
+            if (entry.lootGuid == lootGuid && entry.itemId == itemId)
+            {
+                entry.itemCount = itemCount;
+                entry.randomPropertyId = static_cast<int32>(randomPropertyId);
+                entry.wonAt = time(nullptr);
+                entry.queuedForLoot = false;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            PendingWonLootEntry entry;
+            entry.lootGuid = lootGuid;
+            entry.itemId = itemId;
+            entry.itemCount = itemCount;
+            entry.randomPropertyId = static_cast<int32>(randomPropertyId);
+            entry.wonAt = time(nullptr);
+            pending.push_back(entry);
+        }
+        SET_AI_VALUE(PendingWonLootList, "pending won loot", pending);
+        ServicePendingWonLoot(ai, false);
+    }
+
     return true;
 }

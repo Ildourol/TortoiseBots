@@ -14,6 +14,7 @@
 #include "Maps/CellImpl.h"
 
 #include "playerbot/strategy/actions/DestroyItemAction.h"
+#include "playerbot/strategy/actions/LootRollAction.h"
 #include "../../policy/loot/LootWindowPolicy.h"
 #include "../../policy/loot/BlockedTellPolicy.h"
 
@@ -28,7 +29,10 @@ bool AddLootAction::Execute(Event& event)
     if (!guid)
         return false;
 
-    return AI_VALUE(LootObjectStack*, "available loot")->Add(guid);
+    bool const added = AI_VALUE(LootObjectStack*, "available loot")->Add(guid);
+    if (added)
+        RESET_AI_VALUE(bool, "has available loot");
+    return added;
 }
 
 void AddAllLootAction::TellBlocked(Player* requester, ObjectGuid objectGuid, const std::string& text)
@@ -69,6 +73,11 @@ bool AddAllLootAction::Execute(Event& event)
     bool added = false;
     playerOrder = IsPlayerLootOrder(event.getSource(), event.GetOwner() != nullptr);
 
+    if (playerOrder)
+        RESET_AI_VALUE(uint8, "bag space");
+
+    added |= ServicePendingWonLoot(ai, playerOrder);
+
     std::string text = event.GetParam();
 
     if (!text.empty())
@@ -104,6 +113,12 @@ bool AddAllLootAction::isUseful()
 
 bool AddAllLootAction::AddLoot(Player* requester, ObjectGuid guid)
 {
+    if (playerOrder)
+    {
+        RESET_AI_VALUE(uint8, "bag space");
+        RESET_AI_VALUE2(bool, "should loot object", std::to_string(guid.GetRawValue()));
+    }
+
     // A player's "add all loot" run builds the target as the order it is; an automatic sweep
     // keeps the common-loot pickup filter.
     LootObject loot(bot, guid, playerOrder);
@@ -260,9 +275,11 @@ bool AddAllLootAction::AddLoot(Player* requester, ObjectGuid guid)
         lootStack->NotePlayerOrder(guid);
 
     bool added = lootStack->Add(guid, playerOrder);
+    if (added || playerOrder)
+        RESET_AI_VALUE(bool, "has available loot");
     sLog.outDebug("[BOT LOOT] %s: AddLoot queued guid=%lu (botDist=%.1f masterDist=%.1f cap=%.1f added=%d)",
         bot->GetName(), guid.GetRawValue(), botDist, masterDist, lootDistanceToUse, added ? 1 : 0);
-    return added;
+    return added || playerOrder;
 }
 
 bool AddGatheringLootAction::isUseful()

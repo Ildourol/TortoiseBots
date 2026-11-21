@@ -526,6 +526,14 @@ bool ShouldLootObject::Calculate()
 		if (!lItem->itemid)
 			continue;
 
+		if (!lItem->is_looted && !lItem->is_blocked && lItem->lootOwner == bot->GetObjectGuid())
+		{
+			ItemPosCountVec dest;
+			if (bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, lItem->itemid, lItem->count) == EQUIP_ERR_OK)
+				return true;
+			continue;
+		}
+
 		uint32 canLootAmount = AI_VALUE2(uint32, "stack space for item", lItem->itemid);
 
 		if (canLootAmount < lItem->count)
@@ -624,6 +632,16 @@ std::string SeenNeedRolls::Format()
     for (auto& roll : value)
         out << std::get<0>(roll.first).GetRawValue() << ":" << std::get<1>(roll.first) << ":" <<
             std::get<2>(roll.first).GetRawValue() << "=" << (uint32)roll.second << ",";
+
+    return out.str();
+}
+
+std::string PendingWonLoot::Format()
+{
+    std::ostringstream out;
+
+    for (auto const& entry : value)
+        out << entry.lootGuid.GetRawValue() << ":" << entry.itemId << "x" << entry.itemCount << ",";
 
     return out.str();
 }
