@@ -111,8 +111,8 @@ static bool MayLootCorpse(Player* bot, Creature* creature)
         return true;                                        // the core grants every member this corpse
 
     Loot const& loot = creature->loot;
-    if (loot.roundRobinPlayer == 0 || loot.roundRobinPlayer == bot->GetObjectGuid())
-        return true;                                        // no turn assigned (released) or this bot's turn
+    if (loot.roundRobinPlayer == 0 || loot.roundRobinPlayer == bot->GetObjectGuid() || ai::HasWonLootFor(loot, bot))
+        return true;                                        // no turn assigned (released), this bot's turn, or won roll awaiting pickup
 
     // The assigned master looter opens its corpses even if the turn recorded at the kill went
     // elsewhere (the turn is the tapper when the group had no looter guid yet).
@@ -471,10 +471,16 @@ bool LootObject::IsLootPossible(Player* bot)
     // Body loot stays gated, except kills of a Working skin order's mobs: the
     // corpse must be empty before the Skinning cast is legal, so their grey
     // loot queues too.
-    if (skillId == SKILL_NONE && guid.IsCreature() &&
-        !AI_VALUE2_LAZY(bool, "should loot object", std::to_string(guid.GetRawValue())) &&
-        !GuildOrderSkinMobFor(bot, guid.GetEntry()))
-        return false;
+    if (skillId == SKILL_NONE && guid.IsCreature())
+    {
+        Creature* creature = ai->GetCreature(guid);
+        bool const forceFresh = playerOrder || (creature && ai::HasWonLootFor(creature->loot, bot));
+        bool const shouldLoot = forceFresh
+            ? AI_VALUE2(bool, "should loot object", std::to_string(guid.GetRawValue()))
+            : AI_VALUE2_LAZY(bool, "should loot object", std::to_string(guid.GetRawValue()));
+        if (!shouldLoot && !GuildOrderSkinMobFor(bot, guid.GetEntry()))
+            return false;
+    }
 
     // Skill objects and game objects are the two payloads "should loot object" cannot answer for,
     // and they are also the only ones that reached this point without any capacity test: body loot
@@ -768,7 +774,7 @@ std::vector<LootObject> LootObjectStack::OrderByDistance(float maxDistance)
         {
             if (commanded < 0)
                 commanded = TortoiseBots::BotCommands::IsInCommandedGroup(bot) ? 1 : 0;
-            if (!TortoiseBots::RemoteCommander::OwnLootTakesObject(true, commanded == 1, false))
+            if (!TortoiseBots::RemoteCommander::OwnLootTakesObject(true, commanded == 1, i->playerOrder))
                 continue;
         }
 
