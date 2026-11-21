@@ -1115,8 +1115,14 @@ namespace
 
     bool MakeRoomForWonLoot(PlayerbotAI* ai, Player* bot, uint32 wonItemId, uint32 wonCount, int32 wonRandomProp)
     {
-        ItemPosCountVec dest;
-        if (bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, wonItemId, wonCount) == EQUIP_ERR_OK)
+        // A fresh dest each time: CanStoreNewItem appends to it, and a filled
+        // dest makes the next check fail even after a slot was freed.
+        auto canStore = [&]()
+        {
+            ItemPosCountVec dest;
+            return bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, wonItemId, wonCount) == EQUIP_ERR_OK;
+        };
+        if (canStore())
             return true;
 
         bool const isAutonomousAlt = TortoiseBots::AltBotService::Instance().IsAutonomous(bot->GetObjectGuid());
@@ -1127,7 +1133,7 @@ namespace
         ItemQualifier wonQualifier(wonItemId, wonRandomProp);
         AiObjectContext* context = ai->GetAiObjectContext();
 
-        while (bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, wonItemId, wonCount) != EQUIP_ERR_OK)
+        while (!canStore())
         {
             std::vector<WonLootReliefCandidate> candidates;
             for (int slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
@@ -1172,7 +1178,7 @@ namespace
                 PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false, false);
         }
 
-        return bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, wonItemId, wonCount) == EQUIP_ERR_OK;
+        return canStore();
     }
 
     bool FindPendingWonLootOnSource(Loot const* loot, ObjectGuid winnerGuid, uint32 itemId, uint32& countOut)
