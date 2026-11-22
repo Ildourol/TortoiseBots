@@ -340,7 +340,9 @@ bool ConfirmQuestAction::Execute(Event& event)
 
     if( bot->CanAddQuest( qInfo, false ) )
     {
-        bot->AddQuest( qInfo, requester );
+        // The party-confirm path has no quest giver: pass nullptr like the core's QuestHandler does, otherwise the
+        // quest's start script (quest_start_scripts) runs a second time with the party lead as its source.
+        bot->AddQuest( qInfo, nullptr );
         // Issue #872: remember quests the autonomous alt took itself.
         TortoiseBots::AltBotService::Instance().AddTakenQuest(bot, quest);
 
