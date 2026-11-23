@@ -1798,7 +1798,18 @@ void PlayerbotAI::EnsureAutoToolsKit()
     {
         if (bot->GetSkillValuePure(SKILL_SURVIVAL2) < TortoiseBots::CAMP_SURVIVAL_SKILL_CAP)
             bot->SetSkill(SKILL_SURVIVAL2, TortoiseBots::CAMP_SURVIVAL_SKILL_CAP, TortoiseBots::CAMP_SURVIVAL_SKILL_CAP);
-        EnsureCheatItem(TortoiseBots::CAMP_TENT_ITEM_ID, 1);
+        // The tent never takes the last free slot: a bot that just threw out
+        // junk for loot would lose that room to it.
+        uint32 freeSlots = 0;
+        for (uint8 slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END && freeSlots < 2; ++slot)
+            if (!bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+                ++freeSlots;
+        for (uint8 bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END && freeSlots < 2; ++bagSlot)
+            if (Bag* bag = dynamic_cast<Bag*>(bot->GetItemByPos(INVENTORY_SLOT_BAG_0, bagSlot)))
+                if (bag->GetProto() && bag->GetProto()->BagFamily == 0)
+                    freeSlots += bag->GetFreeSlots();
+        if (freeSlots >= 2)
+            EnsureCheatItem(TortoiseBots::CAMP_TENT_ITEM_ID, 1);
     }
     // MC rune douse: map gate first so open-world bots skip the bag counts;
     // one Quintessence while inside Molten Core so the rune actions never

@@ -6,6 +6,7 @@
 #include "../../policy/loot/LootSlotRightPolicy.h"
 #include "../../policy/loot/CorpseLootPolicy.h"
 #include "LootAction.h"
+#include "LootRollAction.h"
 #include "playerbot/CastKeepsRunningPolicy.h"
 
 #include "playerbot/LootObjectStack.h"
@@ -22,6 +23,7 @@
 #include "../../../../runtime/CommandedGroupQuery.h"
 #include "playerbot/GuildOrderSources.h"
 #include "../../../../runtime/GuildOrderStore.h"
+#include "../../../../runtime/GuildOrderGiveUpPolicy.h"
 
 
 using namespace ai;
@@ -726,10 +728,21 @@ bool StoreLootAction::Execute(Event& event)
             sLog.outDebug("[BOT LOOT] %s: skip item=%u (no stack space, need=%u)", bot->GetName(), itemid, itemcount);
             std::optional<TortoiseBots::GuildOrders::OrderRecord> order =
                 TortoiseBots::GuildOrders::Find(bot->GetGUIDLow());
-            if (order && order->itemId == itemid && order->state == TortoiseBots::GuildOrders::OrderState::Working &&
-                bot->GetItemCount(itemid) > 0)
-                TortoiseBots::GuildOrders::NoteBagsFull(bot->GetGUIDLow());
-            continue;
+            bool roomMade = false;
+            if (order && order->itemId == itemid && order->state == TortoiseBots::GuildOrders::OrderState::Working)
+            {
+                if (bot->GetItemCount(itemid) > 0)
+                    TortoiseBots::GuildOrders::NoteBagsFull(bot->GetGUIDLow());
+                else if (TortoiseBots::GuildOrders::FullBagsWithoutStock(order->supplyStep, 0))
+                {
+                    roomMade = ai::MakeRoomForGuildOrderLoot(ai, bot, itemid, itemcount);
+                    if (!roomMade)
+                        TortoiseBots::GuildOrders::SetState(bot->GetGUIDLow(),
+                            TortoiseBots::GuildOrders::OrderState::Cant, TortoiseBots::GuildOrders::OrderReason::BagsFull);
+                }
+            }
+            if (!roomMade)
+                continue;
         }
 
         WorldObject const* lootTarget = loot ? loot->GetLootTarget() : nullptr;
