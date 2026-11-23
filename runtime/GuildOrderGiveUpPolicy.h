@@ -168,6 +168,14 @@ inline bool DeliveryLostItsStock(OrderState state, OrderReason reason, uint32_t 
         delivered < amount && heldInBagsAndMail == 0;
 }
 
+// Full bags stop a farming bot from looting. With some of the farmed item it
+// goes to deliver; with none there is nothing to hand in and it would walk
+// past nodes until the no-progress limit, so the order ends at once instead.
+inline bool FullBagsEndOrder(SupplyStep step, uint32_t heldOfFarmedItem)
+{
+    return step == SupplyStep::Farm && heldOfFarmedItem == 0;
+}
+
 // The row's have count is what reached the guild (bank deposit or the mail
 // hand-over), never what the bot still carries: progress never drops, so a
 // row keeps max(delivered, last reported). Bags and mail are reported apart

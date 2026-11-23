@@ -14,6 +14,7 @@
 #include "../../runtime/policy/hire/HireLootPolicy.h"
 #include "../../runtime/RemoteCommanderTasks.h"
 #include "../../runtime/GuildOrderStore.h"
+#include "../../runtime/GuildOrderGiveUpPolicy.h"
 #include "playerbot/GuildOrderSources.h"
 
 using namespace ai;
@@ -491,9 +492,15 @@ bool LootObject::IsLootPossible(Player* bot)
         {
             std::optional<TortoiseBots::GuildOrders::OrderRecord> order =
                 TortoiseBots::GuildOrders::Find(bot->GetGUIDLow());
-            if (order && order->state == TortoiseBots::GuildOrders::OrderState::Working &&
-                order->itemId && bot->GetItemCount(order->itemId) > 0)
-                TortoiseBots::GuildOrders::NoteBagsFull(bot->GetGUIDLow());
+            if (order && order->state == TortoiseBots::GuildOrders::OrderState::Working && order->itemId)
+            {
+                uint32 const farmedItem = order->supplyItemId ? order->supplyItemId : order->itemId;
+                if (bot->GetItemCount(order->itemId) > 0)
+                    TortoiseBots::GuildOrders::NoteBagsFull(bot->GetGUIDLow());
+                else if (TortoiseBots::GuildOrders::FullBagsEndOrder(order->supplyStep, bot->GetItemCount(farmedItem)))
+                    TortoiseBots::GuildOrders::SetState(bot->GetGUIDLow(),
+                        TortoiseBots::GuildOrders::OrderState::Cant, TortoiseBots::GuildOrders::OrderReason::BagsFull);
+            }
         }
         return false;
     }

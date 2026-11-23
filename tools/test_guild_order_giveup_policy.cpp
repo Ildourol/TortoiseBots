@@ -154,6 +154,11 @@ int main()
     CHECK(!DeliveryLostItsStock(OrderState::Delivering, OrderReason::Timeout, 0, 5, 0));
     CHECK(!DeliveryLostItsStock(OrderState::Delivering, OrderReason::None, 3, 3, 0));
     CHECK(!DeliveryLostItsStock(OrderState::Working, OrderReason::None, 0, 1, 0));
+    // Full bags with none of the farmed item end the order; with some it delivers.
+    CHECK(FullBagsEndOrder(SupplyStep::Farm, 0));
+    CHECK(!FullBagsEndOrder(SupplyStep::Farm, 2));
+    CHECK(!FullBagsEndOrder(SupplyStep::Deliver, 0));
+    CHECK(!FullBagsEndOrder(SupplyStep::None, 0));
 
     if (failures == 0)
         std::printf("test_guild_order_giveup_policy ok\n");

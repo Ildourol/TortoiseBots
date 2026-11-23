@@ -22,6 +22,7 @@
 #include "../../../../runtime/CommandedGroupQuery.h"
 #include "playerbot/GuildOrderSources.h"
 #include "../../../../runtime/GuildOrderStore.h"
+#include "../../../../runtime/GuildOrderGiveUpPolicy.h"
 
 
 using namespace ai;
@@ -726,9 +727,14 @@ bool StoreLootAction::Execute(Event& event)
             sLog.outDebug("[BOT LOOT] %s: skip item=%u (no stack space, need=%u)", bot->GetName(), itemid, itemcount);
             std::optional<TortoiseBots::GuildOrders::OrderRecord> order =
                 TortoiseBots::GuildOrders::Find(bot->GetGUIDLow());
-            if (order && order->itemId == itemid && order->state == TortoiseBots::GuildOrders::OrderState::Working &&
-                bot->GetItemCount(itemid) > 0)
-                TortoiseBots::GuildOrders::NoteBagsFull(bot->GetGUIDLow());
+            if (order && order->itemId == itemid && order->state == TortoiseBots::GuildOrders::OrderState::Working)
+            {
+                if (bot->GetItemCount(itemid) > 0)
+                    TortoiseBots::GuildOrders::NoteBagsFull(bot->GetGUIDLow());
+                else if (TortoiseBots::GuildOrders::FullBagsEndOrder(order->supplyStep, 0))
+                    TortoiseBots::GuildOrders::SetState(bot->GetGUIDLow(),
+                        TortoiseBots::GuildOrders::OrderState::Cant, TortoiseBots::GuildOrders::OrderReason::BagsFull);
+            }
             continue;
         }
 
