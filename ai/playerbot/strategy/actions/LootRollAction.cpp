@@ -1113,7 +1113,8 @@ namespace
         return c;
     }
 
-    bool MakeRoomForWonLoot(PlayerbotAI* ai, Player* bot, uint32 wonItemId, uint32 wonCount, int32 wonRandomProp)
+    bool MakeRoomForWonLoot(PlayerbotAI* ai, Player* bot, uint32 wonItemId, uint32 wonCount, int32 wonRandomProp,
+        bool allowAutonomousAlt = false)
     {
         // A fresh dest each time: CanStoreNewItem appends to it, and a filled
         // dest makes the next check fail even after a slot was freed.
@@ -1125,7 +1126,8 @@ namespace
         if (canStore())
             return true;
 
-        bool const isAutonomousAlt = TortoiseBots::AltBotService::Instance().IsAutonomous(bot->GetObjectGuid());
+        bool const isAutonomousAlt = !allowAutonomousAlt &&
+            TortoiseBots::AltBotService::Instance().IsAutonomous(bot->GetObjectGuid());
         if (isAutonomousAlt)
             return false;
 
@@ -1196,6 +1198,11 @@ namespace
         }
         return false;
     }
+}
+
+bool ai::MakeRoomForGuildOrderLoot(PlayerbotAI* ai, Player* bot, uint32 itemId, uint32 count)
+{
+    return ai && bot && itemId && MakeRoomForWonLoot(ai, bot, itemId, count ? count : 1, 0, true);
 }
 
 bool ai::ServicePendingWonLoot(PlayerbotAI* ai, bool explicitPlayerOrder)

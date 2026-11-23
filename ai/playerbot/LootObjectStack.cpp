@@ -16,6 +16,7 @@
 #include "../../runtime/GuildOrderStore.h"
 #include "../../runtime/GuildOrderGiveUpPolicy.h"
 #include "playerbot/GuildOrderSources.h"
+#include "playerbot/strategy/actions/LootRollAction.h"
 
 using namespace ai;
 
@@ -488,6 +489,7 @@ bool LootObject::IsLootPossible(Player* bot)
     // got one above. Queue them only when the bot has somewhere to put the loot.
     if ((skillId != SKILL_NONE || guid.IsGameObject()) && !HasBagRoomForLoot(ai, bot))
     {
+        bool roomMade = false;
         if (bot->GetGuildId())
         {
             std::optional<TortoiseBots::GuildOrders::OrderRecord> order =
@@ -497,12 +499,17 @@ bool LootObject::IsLootPossible(Player* bot)
                 uint32 const farmedItem = order->supplyItemId ? order->supplyItemId : order->itemId;
                 if (bot->GetItemCount(order->itemId) > 0)
                     TortoiseBots::GuildOrders::NoteBagsFull(bot->GetGUIDLow());
-                else if (TortoiseBots::GuildOrders::FullBagsEndOrder(order->supplyStep, bot->GetItemCount(farmedItem)))
-                    TortoiseBots::GuildOrders::SetState(bot->GetGUIDLow(),
-                        TortoiseBots::GuildOrders::OrderState::Cant, TortoiseBots::GuildOrders::OrderReason::BagsFull);
+                else if (TortoiseBots::GuildOrders::FullBagsWithoutStock(order->supplyStep, bot->GetItemCount(farmedItem)))
+                {
+                    roomMade = ai::MakeRoomForGuildOrderLoot(ai, bot, farmedItem, 1);
+                    if (!roomMade)
+                        TortoiseBots::GuildOrders::SetState(bot->GetGUIDLow(),
+                            TortoiseBots::GuildOrders::OrderState::Cant, TortoiseBots::GuildOrders::OrderReason::BagsFull);
+                }
             }
         }
-        return false;
+        if (!roomMade)
+            return false;
     }
     // Bone Chew Toy piles never queue even if ActivateToQuest says yes:
     // Refresh (the open path) already refuses them, and this Add path would
