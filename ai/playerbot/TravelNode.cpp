@@ -3054,7 +3054,7 @@ bool LinkTravelNodesDetour(TravelNode* startNode, TravelNode* endNode)
 }
 } // namespace
 
-void TravelNodeMap::generateWalkPathMapSync(uint32 mapId, uint32& donePairs, uint32& linkedPairs, uint32 logEvery, uint32& sinceLog, uint32 totalPairs)
+void TravelNodeMap::generateWalkPathMapSync(uint32 mapId, uint32& donePairs, uint32& linkedPairs, uint32 logEvery, uint32& sinceLog, uint32 totalPairs, uint32 startMs)
 {
     for (auto& startNode : sTravelNodeMap.GetNodes(WorldPosition(mapId, 1, 1)))
     {
@@ -3099,7 +3099,11 @@ void TravelNodeMap::generateWalkPathMapSync(uint32 mapId, uint32& donePairs, uin
             if (logEvery && ++sinceLog >= logEvery)
             {
                 sinceLog = 0;
-                sLog.outString("TortoiseBots: travel walk links %u/%u pairs, %u linked.", donePairs, totalPairs, linkedPairs);
+                uint32 elapsedSec = (WorldTimer::getMSTime() - startMs) / 1000;
+                uint32 leftPairs = totalPairs > donePairs ? totalPairs - donePairs : 0;
+                uint32 etaMin = donePairs ? (uint32)((uint64)elapsedSec * leftPairs / donePairs / 60) : 0;
+                sLog.outString("TortoiseBots: travel walk links %u/%u pairs, %u linked (%u min so far, about %u min left).",
+                    donePairs, totalPairs, linkedPairs, elapsedSec / 60, etaMin);
             }
         }
 
@@ -3628,7 +3632,7 @@ void TravelNodeMap::generatePaths(bool helpers)
 
     // Single-threaded: navmesh tile loading is not thread-safe.
     for (uint32 mapId : mapIds)
-        generateWalkPathMapSync(mapId, donePairs, linkedPairs, logEvery, sinceLog, totalPairs);
+        generateWalkPathMapSync(mapId, donePairs, linkedPairs, logEvery, sinceLog, totalPairs, startMs);
 
     sLog.outString("TortoiseBots: travel walk links done: %u nodes, %u pairs attempted, %u linked (%us).",
         (uint32)GetNodes().size(), donePairs, linkedPairs, (WorldTimer::getMSTime() - startMs) / 1000);
@@ -3664,6 +3668,9 @@ void TravelNodeMap::generateAll()
             return;
         }
 
+        sLog.outString("TortoiseBots: building the bot travel map. This happens once, on the first start only.");
+        sLog.outString("TortoiseBots: it can take 10-40 minutes on slower PCs, with long quiet stretches. Do not stop the server;");
+        sLog.outString("TortoiseBots: if you do, nothing is saved and the next start begins again. Later starts just load it.");
         sLog.outString("-Generating nodes");
         generateNodes();
         hasToFullGen = true;
