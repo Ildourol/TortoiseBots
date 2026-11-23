@@ -3093,7 +3093,6 @@ AiPlayerbot.TradeActionExcludedPrefixes = "RPLL_H_,DBMv4"
 # use persisted nodes or direct movement). No incremental/tick/background work.
 # Default: 1 (generate once while empty)
 AiPlayerbot.GenerateTravelNodes = 1
-# AiPlayerbot.GenerateTravelNodes = 0
 
 # Generate and persist fish-location points when no FISH_LOCATION rows exist.
 # This scans populated grids and writes a potentially large cache to World.
