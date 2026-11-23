@@ -120,9 +120,9 @@ namespace ai
 
     bool ServicePendingWonLoot(PlayerbotAI* ai, bool explicitPlayerOrder = false);
 
-    // Frees bag room for a guild order's loot by destroying junk, the same
-    // picks as for a won roll; owned alts too, since the order is the
-    // player's own request. False when nothing may go.
+    // Frees bag room for a guild order's loot by destroying grey or white
+    // junk, the same picks as for a won roll; owned alts too, since the
+    // order is the player's own request. False when nothing may go.
     bool MakeRoomForGuildOrderLoot(PlayerbotAI* ai, Player* bot, uint32 itemId, uint32 count);
 
     class AutoLootRollAction : public RollAction
