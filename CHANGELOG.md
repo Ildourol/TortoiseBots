@@ -196,6 +196,22 @@
 - Fixed: the totem focus no longer cuts a cast already aimed at the totem it focuses.
 - taunt_after_cast now runs on AuraTactics alone (AiPlayerbot.DungeonRunCharmYield is no longer needed).
 
+## v1.31.0 (2026-11-23)
+
+### Travel & World
+- Bots now have a full travel network ready on a fresh server, so long trips finish instead of stalling. [#1680](https://github.com/Sagiroth/TortoiseBots/pull/1680)
+- Bots get stuck far less on cross-zone journeys, and guild orders that need a long walk now succeed more often. [#1680](https://github.com/Sagiroth/TortoiseBots/pull/1680)
+
+### Guild Orders
+- A bot on a farm order with full bags now frees up space by throwing away grey items first, then the cheapest white junk. [#1679](https://github.com/Sagiroth/TortoiseBots/pull/1679)
+- Bots never sell anything green or better, quest items, bags, ammo or reagents to make room. [#1679](https://github.com/Sagiroth/TortoiseBots/pull/1679)
+- Farm orders no longer end after hours as failed just because the bot could not pick anything up. [#1679](https://github.com/Sagiroth/TortoiseBots/pull/1679)
+
+### Quests & Groups
+- When a bot confirms a shared party quest, the quest's special start effects no longer trigger a second time. [#1676](https://github.com/Sagiroth/TortoiseBots/pull/1676)
+
+---
+
 ## v1.30.0 (2026-11-21)
 
 ### Classes & Combat
