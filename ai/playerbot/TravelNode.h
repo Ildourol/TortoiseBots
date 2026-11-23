@@ -530,6 +530,8 @@ namespace ai
         void addManualNodes();                    //Nodes manually placed to reach places that can not be pathed automatically.
         void generateNodes();                     //Call all above methods.
 
+        void generateWalkPathMapSync(uint32 mapId, uint32& donePairs, uint32& linkedPairs, uint32 logEvery, uint32& sinceLog, uint32 totalPairs);
+        void calculatePathCostsSync();            //Inline cost pass (no std::async: tile loading is not thread-safe).
         void generateWalkPathMap(uint32 mapId, BarGoLink* bar);   //Pathfind from all nodes to all nodes in a specific map. Create a path for all attemps and a link for all paths that actually reach the end node.
         void generateWalkPaths();                 //Call above method for all maps async.
 

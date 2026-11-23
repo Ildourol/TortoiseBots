@@ -30,6 +30,7 @@ The total bot population is a major factor in server CPU and memory usage. When 
 | [`AiPlayerbot.TravelPickBudgetUs`](#aiplayerbottravelpickbudgetus) | `4000` | Microsecond budget limit per bot visit for travel destination calculations. |
 | [`AiPlayerbot.AsyncTravelPartitions`](#aiplayerbotasynctravelpartitions) | `0` | Enables asynchronous partitioning of world travel destination lookups. |
 | [`AiPlayerbot.GenerateItemCaches`](#aiplayerbotgenerateitemcaches) | `1` | Builds equipment and item candidate database tables on first boot. |
+| [`AiPlayerbot.GenerateTravelNodes`](#aiplayerbotgeneratetravelnodes) | `1` | Builds the bot travel graph once on startup when the travel tables are empty. |
 | [`AiPlayerbot.LogInGroupOnly`](#aiplayerbotlogingrouponly) | `1` | Restricts detailed per-action logging output to bots currently in groups. |
 | [`AiPlayerbot.Enabled`](#aiplayerbotenabled) | `1` | Master kill-switch enabling or disabling bot artificial intelligence updates. |
 | [`AiPlayerbot.PoolMeleeHoldGround`](#aiplayerbotpoolmeleeholdground) | `0` | Disables generic fleeing behaviors on pool melee classes during combat. |
@@ -215,6 +216,19 @@ Builds equipment and item candidate database tables on first startup.
 On initial server boot, if the `ai_playerbot_equip_cache` and `ai_playerbot_rnditem_cache` character-database tables are empty, this setting generates them from the loaded item prototypes.
 
 Once generated, the tables are loaded directly from SQL on subsequent restarts. Leave this setting enabled; if disabled with empty tables, bots only fill empty slots from loot.
+
+</details>
+
+### `AiPlayerbot.GenerateTravelNodes`
+Builds the bot travel network once on first startup when the travel tables are empty.
+**Default:** `1` · **Values:** `0` off, `1` on · **Restart:** needed
+
+<details>
+<summary>How it works in detail</summary>
+
+On initial server boot, if the `ai_playerbot_travelnode`, `ai_playerbot_travelnode_link`, and `ai_playerbot_travelnode_path` world-database tables are empty, this setting generates the travel network from the server's loaded world data (creatures, flight masters, area triggers, transports, portals, and extracted navmesh tiles) and saves it in one transaction.
+
+Once generated, later boots load the saved network directly from the database without regenerating it. First boot takes a few minutes and logs progress every few percent. Setting this to `0` skips generation when the tables are empty (bots fall back to direct navmesh movement).
 
 </details>
 
