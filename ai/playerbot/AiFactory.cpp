@@ -195,7 +195,23 @@ int AiFactory::GetKitSpecTab(const Player* player, PlayerbotAI* const facade)
 {
     int const tab = GetPlayerSpecTab(player);
     uint8 const role = facade ? facade->GetForcedRole() : static_cast<uint8>(BOT_ROLE_NONE);
-    if (!role || (role & BOT_ROLE_TANK))
+    if (!role)
+        return tab;
+
+    // A forced tank role on a holy/ret paladin, arms/fury warrior or caster
+    // druid (low-level alts have no talents yet) was read as a tank by the
+    // group but kept the damage kit, so it never picked mobs off the healer.
+    if (role == BOT_ROLE_TANK)
+    {
+        if (player->GetClass() == CLASS_WARRIOR)
+            return 2; // protection
+        if (player->GetClass() == CLASS_PALADIN)
+            return 1; // protection
+        if (player->GetClass() == CLASS_DRUID)
+            return 1; // feral
+        return tab;
+    }
+    if (role & BOT_ROLE_TANK)
         return tab;
 
     // `.bot role <bot> dps` on a protection warrior kept "protection",
