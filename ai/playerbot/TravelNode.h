@@ -465,7 +465,7 @@ namespace ai
 
         TravelNode* addNode(WorldPosition pos, std::string preferedName = "Travel Node", bool isImportant = false, bool checkDuplicate = true, bool transport = false, uint32 transportId = 0);
         void removeNode(TravelNode* node);
-        bool removeNodes() { if (m_nMapMtx.try_lock_for(std::chrono::seconds(10))) { for (auto& node : m_nodes) removeNode(node); m_nMapMtx.unlock(); return true; } return false; };
+        bool removeNodes() { if (m_nMapMtx.try_lock_for(std::chrono::seconds(10))) { while (!m_nodes.empty()) removeNode(m_nodes.back()); m_nMapMtx.unlock(); return true; } return false; };
         void fullLinkNode(TravelNode* startNode, Unit* bot);
 
         //Get all nodes

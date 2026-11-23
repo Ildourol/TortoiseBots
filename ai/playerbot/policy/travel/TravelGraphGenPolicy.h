@@ -7,8 +7,10 @@
 //
 // Tested in tools/test_travel_graph_gen_policy.cpp.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <vector>
 
 namespace ai
 {
@@ -73,5 +75,19 @@ namespace ai
     inline bool TravelGenTileCoordsMatch(int detourTx, int detourTy, int gridX, int gridY)
     {
         return detourTx == gridY && detourTy == gridX;
+    }
+
+    // Directed reachability in removeLowNodes: when node A reaches a small
+    // cluster {A, C} (< 5 nodes) and node B -> C reaches the same {C} (< 5
+    // nodes), C appears in both GetNodeMap(true) lists. Deduplicating the
+    // removal list prevents removeNode(C) from running twice (use-after-free
+    // and double delete on C).
+    template <typename NodePtr>
+    inline void TravelGenAppendUniqueRemovals(std::vector<NodePtr>& remNodes,
+        std::vector<NodePtr> const& component)
+    {
+        for (NodePtr const& reached : component)
+            if (std::find(remNodes.begin(), remNodes.end(), reached) == remNodes.end())
+                remNodes.push_back(reached);
     }
 }

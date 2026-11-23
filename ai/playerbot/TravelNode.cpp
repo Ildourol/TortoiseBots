@@ -444,10 +444,11 @@ void TravelNode::removeLinkTo(TravelNode* node, bool removePaths) {
         routes.erase(node);
     }
     else { //Remove all references to this node.
-        for (auto& node : sTravelNodeMap.GetNodes())
+        for (auto& other : sTravelNodeMap.GetNodes())
         {
-            if (node->hasPathTo(this))
-                node->removeLinkTo(this, removePaths);
+            if (other == this)
+                continue;
+            other->removeLinkTo(this, removePaths);
         }
         links.clear();
         paths.clear();
@@ -1576,6 +1577,9 @@ TravelNode* TravelNodeMap::addNode(WorldPosition pos, std::string preferedName, 
 
 void TravelNodeMap::removeNode(TravelNode* node)
 {
+    if (!node || std::find(m_nodes.begin(), m_nodes.end(), node) == m_nodes.end())
+        return;
+
     node->removeLinkTo(NULL, true);
 
     uint32 mapId = node->GetMapId();
@@ -3419,7 +3423,7 @@ void TravelNodeMap::removeLowNodes()
         std::vector<TravelNode*> nodes = node->GetNodeMap(true);
 
         if (nodes.size() < 5)
-            remNodes.insert(remNodes.end(), nodes.begin(), nodes.end());
+            ai::TravelGenAppendUniqueRemovals(remNodes, nodes);
         else
             goodNodes.insert(goodNodes.end(), nodes.begin(), nodes.end());
     }

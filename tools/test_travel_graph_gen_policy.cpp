@@ -2,6 +2,8 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <unordered_map>
+#include <vector>
 
 #define CHECK(x) do { \
     if (!(x)) { \
@@ -9,6 +11,138 @@
         std::exit(1); \
     } \
 } while (0)
+
+namespace
+{
+    // Minimal faithful mirror of TravelNode + TravelNodeMap::removeLowNodes /
+    // removeNode to prove under ASan / _GLIBCXX_DEBUG that overlapping directed
+    // reachability components (< 5 nodes) and link-only / path-only edges are
+    // pruned without use-after-free or double delete.
+    struct SimPath
+    {
+        std::vector<int> waypoints{ 1, 2, 3, 4 };
+    };
+
+    struct SimNode
+    {
+        int id = 0;
+        bool overworld = true;
+        bool important = true;
+        std::unordered_map<SimNode*, SimPath> paths;
+        std::unordered_map<SimNode*, SimPath*> links;
+        std::unordered_map<SimNode*, bool> routes;
+
+        void setPathTo(SimNode* target, bool isLink = true)
+        {
+            if (target == this)
+                return;
+            paths[target] = SimPath{};
+            if (isLink)
+                links[target] = &paths[target];
+        }
+
+        std::vector<SimNode*> getNodeMap(bool importantOnly = false)
+        {
+            std::vector<SimNode*> open{ this };
+            std::vector<SimNode*> close;
+            for (std::size_t i = 0; i < open.size(); ++i)
+            {
+                SimNode* cur = open[i];
+                if (!importantOnly || cur->important)
+                    close.push_back(cur);
+                for (auto& kv : cur->links)
+                {
+                    SimNode* next = kv.first;
+                    if (std::find(open.begin(), open.end(), next) == open.end())
+                        open.push_back(next);
+                }
+            }
+            return close;
+        }
+    };
+
+    struct SimMap
+    {
+        std::vector<SimNode*> nodes;
+        int deleteCount = 0;
+
+        ~SimMap()
+        {
+            for (SimNode* n : nodes)
+                delete n;
+        }
+
+        SimNode* add(int id)
+        {
+            SimNode* n = new SimNode();
+            n->id = id;
+            nodes.push_back(n);
+            return n;
+        }
+
+        void removeLinkTo(SimNode* self, SimNode* target, bool removePaths)
+        {
+            if (target)
+            {
+                if (removePaths)
+                    self->paths.erase(target);
+                self->links.erase(target);
+                self->routes.erase(target);
+            }
+            else
+            {
+                for (SimNode* other : nodes)
+                {
+                    if (other == self)
+                        continue;
+                    removeLinkTo(other, self, removePaths);
+                }
+                self->links.clear();
+                self->paths.clear();
+                self->routes.clear();
+            }
+        }
+
+        void removeNode(SimNode* node)
+        {
+            if (!node || std::find(nodes.begin(), nodes.end(), node) == nodes.end())
+                return;
+            removeLinkTo(node, nullptr, true);
+            for (SimNode*& tnode : nodes)
+            {
+                if (tnode == node)
+                {
+                    delete tnode;
+                    tnode = nullptr;
+                    ++deleteCount;
+                }
+            }
+            nodes.erase(std::remove(nodes.begin(), nodes.end(), nullptr), nodes.end());
+        }
+
+        void removeLowNodes()
+        {
+            std::vector<SimNode*> goodNodes;
+            std::vector<SimNode*> remNodes;
+            for (SimNode* node : nodes)
+            {
+                if (!node->overworld)
+                    continue;
+                if (std::find(goodNodes.begin(), goodNodes.end(), node) != goodNodes.end())
+                    continue;
+                if (std::find(remNodes.begin(), remNodes.end(), node) != remNodes.end())
+                    continue;
+                std::vector<SimNode*> comp = node->getNodeMap(true);
+                if (comp.size() < 5)
+                    ai::TravelGenAppendUniqueRemovals(remNodes, comp);
+                else
+                    goodNodes.insert(goodNodes.end(), comp.begin(), comp.end());
+            }
+            for (SimNode* node : remNodes)
+                removeNode(node);
+        }
+    };
+}
 
 int main()
 {
@@ -54,6 +188,42 @@ int main()
     // Per-tile Detour coordinate swap: tx matches gridY, ty matches gridX.
     CHECK(ai::TravelGenTileCoordsMatch(42, 31, 31, 42));
     CHECK(!ai::TravelGenTileCoordsMatch(31, 42, 31, 42));
+
+    // Directed low-node pruning: overlapping small components (A -> C and B -> C)
+    // must not schedule C for deletion twice, and a surviving component (G1..G5)
+    // that had a one-way link into C must have its link/path/route to C erased.
+    {
+        std::vector<int> rem;
+        ai::TravelGenAppendUniqueRemovals(rem, { 1, 3 });
+        ai::TravelGenAppendUniqueRemovals(rem, { 2, 3 });
+        CHECK((rem == std::vector<int>{ 1, 3, 2 }));
+
+        SimMap map;
+        SimNode* a = map.add(1);
+        SimNode* b = map.add(2);
+        SimNode* c = map.add(3);
+        // Directed links: A -> C, B -> C (no reverse link from C).
+        // Without deduplication, A's GetNodeMap returns {A, C} (< 5) and B's
+        // GetNodeMap returns {B, C} (< 5), pushing C into remNodes twice and
+        // causing use-after-free + double-free on C.
+        a->setPathTo(c, true);
+        b->setPathTo(c, true);
+
+        // A 5-node connected component that survives pruning, with a stale
+        // route entry and link pointing to C.
+        SimNode* g1 = map.add(10);
+        SimNode* g2 = map.add(11);
+        SimNode* g3 = map.add(12);
+        SimNode* g4 = map.add(13);
+        SimNode* g5 = map.add(14);
+        g1->setPathTo(g2); g2->setPathTo(g3); g3->setPathTo(g4); g4->setPathTo(g5); g5->setPathTo(g1);
+        g1->routes[c] = true;
+
+        map.removeLowNodes();
+        CHECK(map.deleteCount == 3);
+        CHECK(map.nodes.size() == 5);
+        CHECK(g1->routes.find(c) == g1->routes.end());
+    }
 
     std::cout << "travel graph gen policy: OK\n";
     return 0;
