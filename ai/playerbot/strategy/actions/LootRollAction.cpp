@@ -1113,7 +1113,8 @@ namespace
         return c;
     }
 
-    bool MakeRoomForWonLoot(PlayerbotAI* ai, Player* bot, uint32 wonItemId, uint32 wonCount, int32 wonRandomProp)
+    bool MakeRoomForWonLoot(PlayerbotAI* ai, Player* bot, uint32 wonItemId, uint32 wonCount, int32 wonRandomProp,
+        bool allowAutonomousAlt = false, uint32 maxQuality = MAX_ITEM_QUALITY)
     {
         // A fresh dest each time: CanStoreNewItem appends to it, and a filled
         // dest makes the next check fail even after a slot was freed.
@@ -1125,7 +1126,8 @@ namespace
         if (canStore())
             return true;
 
-        bool const isAutonomousAlt = TortoiseBots::AltBotService::Instance().IsAutonomous(bot->GetObjectGuid());
+        bool const ownedAlt = TortoiseBots::AltBotService::Instance().IsAutonomous(bot->GetObjectGuid());
+        bool const isAutonomousAlt = ownedAlt && !allowAutonomousAlt;
         if (isAutonomousAlt)
             return false;
 
@@ -1139,7 +1141,8 @@ namespace
             for (int slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
             {
                 Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
-                if (!item || !item->GetProto() || item->GetProto()->ItemId == wonItemId)
+                if (!item || !item->GetProto() || item->GetProto()->ItemId == wonItemId ||
+                    item->GetProto()->Quality > maxQuality)
                     continue;
                 candidates.push_back(BuildReliefCandidate(ai, bot, item, true));
             }
@@ -1153,7 +1156,8 @@ namespace
                 for (uint32 slot = 0; slot < bag->GetBagSize(); ++slot)
                 {
                     Item* item = bag->GetItemByPos(slot);
-                    if (!item || !item->GetProto() || item->GetProto()->ItemId == wonItemId)
+                    if (!item || !item->GetProto() || item->GetProto()->ItemId == wonItemId ||
+                        item->GetProto()->Quality > maxQuality)
                         continue;
                     candidates.push_back(BuildReliefCandidate(ai, bot, item, bagFits));
                 }
@@ -1172,10 +1176,14 @@ namespace
             bot->DestroyItem(chosen.bag, chosen.slot, true);
             RESET_AI_VALUE(uint8, "bag space");
 
-            Player* recipient = ai->GetMaster() ? ai->GetMaster() : bot;
-            ai->TellPlayerNoFacing(recipient,
-                "Destroyed " + ChatHelper::formatItem(destroyedQualifier) + " to make room for " + ChatHelper::formatItem(wonQualifier),
-                PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false, false);
+            std::string const note = "Destroyed " + ChatHelper::formatItem(destroyedQualifier) +
+                " to make room for " + ChatHelper::formatItem(wonQualifier);
+            if (ownedAlt)
+                TortoiseBots::AltBotService::Instance().TellOwner(bot->GetGUIDLow(),
+                    std::string(bot->GetName()) + ": " + note);
+            else
+                ai->TellPlayerNoFacing(ai->GetMaster() ? ai->GetMaster() : bot, note,
+                    PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false, false);
         }
 
         return canStore();
@@ -1196,6 +1204,11 @@ namespace
         }
         return false;
     }
+}
+
+bool ai::MakeRoomForGuildOrderLoot(PlayerbotAI* ai, Player* bot, uint32 itemId, uint32 count)
+{
+    return ai && bot && itemId && MakeRoomForWonLoot(ai, bot, itemId, count ? count : 1, 0, true, ITEM_QUALITY_NORMAL);
 }
 
 bool ai::ServicePendingWonLoot(PlayerbotAI* ai, bool explicitPlayerOrder)

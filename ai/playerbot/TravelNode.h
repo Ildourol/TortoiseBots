@@ -465,7 +465,7 @@ namespace ai
 
         TravelNode* addNode(WorldPosition pos, std::string preferedName = "Travel Node", bool isImportant = false, bool checkDuplicate = true, bool transport = false, uint32 transportId = 0);
         void removeNode(TravelNode* node);
-        bool removeNodes() { if (m_nMapMtx.try_lock_for(std::chrono::seconds(10))) { for (auto& node : m_nodes) removeNode(node); m_nMapMtx.unlock(); return true; } return false; };
+        bool removeNodes() { if (m_nMapMtx.try_lock_for(std::chrono::seconds(10))) { while (!m_nodes.empty()) removeNode(m_nodes.back()); m_nMapMtx.unlock(); return true; } return false; };
         void fullLinkNode(TravelNode* startNode, Unit* bot);
 
         //Get all nodes
@@ -530,6 +530,8 @@ namespace ai
         void addManualNodes();                    //Nodes manually placed to reach places that can not be pathed automatically.
         void generateNodes();                     //Call all above methods.
 
+        void generateWalkPathMapSync(uint32 mapId, uint32& donePairs, uint32& linkedPairs, uint32 logEvery, uint32& sinceLog, uint32 totalPairs);
+        void calculatePathCostsSync();            //Inline cost pass (no std::async: tile loading is not thread-safe).
         void generateWalkPathMap(uint32 mapId, BarGoLink* bar);   //Pathfind from all nodes to all nodes in a specific map. Create a path for all attemps and a link for all paths that actually reach the end node.
         void generateWalkPaths();                 //Call above method for all maps async.
 

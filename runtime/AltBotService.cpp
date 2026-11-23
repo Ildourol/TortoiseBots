@@ -274,6 +274,19 @@ uint32_t AltBotService::GetOwnerAccount(uint32_t guidLow) const
     return it == m_sessions.end() ? 0 : it->second.ownerAccountId;
 }
 
+void AltBotService::TellOwner(uint32_t altGuidLow, std::string const& text) const
+{
+    ObjectGuid ownerGuid;
+    {
+        std::lock_guard<std::mutex> lock(m_sessionsMutex);
+        auto it = m_sessions.find(altGuidLow);
+        if (it == m_sessions.end())
+            return;
+        ownerGuid = it->second.ownerGuid;
+    }
+    Tell(OnlineOwner(ownerGuid), text);
+}
+
 void AltBotService::QueueGroupLeave(ObjectGuid guid)
 {
     if (!sPlayerbotAIConfig.altBots || !guid.IsPlayer())
@@ -323,7 +336,7 @@ void AltBotService::Update()
                 true, bot->GetGroup() != nullptr, !GroupAloneOnMap(bot)))
             continue;
         if (RelocateMisplacedAlt(bot, AltBotExitTarget::InstanceExit))
-            Tell(OnlineOwner(GetOwnerAccount(guid.GetCounter())),
+            TellOwner(guid.GetCounter(),
                 std::string(bot->GetName()) + " was alone in an instance and came out to the entrance.");
     }
 }

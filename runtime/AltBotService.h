@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <ctime>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -38,6 +39,8 @@ public:
         return static_cast<uint32_t>(m_sessions.size());
     }
     uint32_t GetOwnerAccount(uint32_t guidLow) const;
+    // System message to the alt's owner when they are online.
+    void TellOwner(uint32_t altGuidLow, std::string const& text) const;
 
     // Group hooks: a member left a group / a group broke up. Deferred to the
     // next Update so the group operation finishes before the bot is touched.
