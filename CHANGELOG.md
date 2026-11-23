@@ -196,6 +196,17 @@
 - Fixed: the totem focus no longer cuts a cast already aimed at the totem it focuses.
 - taunt_after_cast now runs on AuraTactics alone (AiPlayerbot.DungeonRunCharmYield is no longer needed).
 
+## v1.31.1 (2026-11-23)
+
+### World & Travel
+- Servers no longer crash on first start while bot flight routes are being prepared. [#1682](https://github.com/Sagiroth/TortoiseBots/pull/1682)
+- Portal names in the startup log now appear correctly. [#1682](https://github.com/Sagiroth/TortoiseBots/pull/1682)
+
+### Behind the scenes
+- Removed an outdated commented-out travel setting from the default config. [#1682](https://github.com/Sagiroth/TortoiseBots/pull/1682)
+
+---
+
 ## v1.31.0 (2026-11-23)
 
 ### Travel & World
