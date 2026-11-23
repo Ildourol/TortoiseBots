@@ -28,6 +28,20 @@ using namespace MaNGOS;
 // Penqle's Singleton<> requires an explicit instantiation in a .cpp file.
 INSTANTIATE_SINGLETON_1(ai::TravelNodeMap);
 
+namespace
+{
+// Cores without the taxipathnode rebuild size each path by its highest node
+// index, so a DBC path that skips an index keeps an empty slot; indexing it
+// dereferences null.
+struct TaxiPathNodeListAccess : TaxiPathNodeList
+{
+    static TaxiPathNodeEntry const* At(TaxiPathNodeList const& path, size_t index)
+    {
+        return (path.*(&TaxiPathNodeListAccess::i_nodes))[index].i_ptr;
+    }
+};
+}
+
 //TravelNodePath(float distance = 0.1f, float extraCost = 0, TravelNodePathType pathType = TravelNodePathType::walk, uint64 pathObject = 0, bool calculated = false, std::vector<uint8> maxLevelCreature = { 0,0,0 }, float swimDistance = 0)
 std::string TravelNodePath::print()
 {
@@ -2630,7 +2644,7 @@ void TravelNodeMap::generatePortalNodes()
 
         if (outPos.isOverworld() && outPos.currentHeight() > 0.5f && outPos.currentHeight() < 50.0f)
         {
-            sLog.outError("%s adjusting height down from %f", pSpellInfo->SpellName[0], outPos.currentHeight());
+            sLog.outError("%s adjusting height down from %f", pSpellInfo->SpellName[0].c_str(), outPos.currentHeight());
             outPos.setZ(outPos.getZ() - outPos.currentHeight() + 0.5f);
         }
 
@@ -3373,14 +3387,20 @@ void TravelNodeMap::generateTaxiPaths()
         std::vector<WorldPosition> ppath;
         ppath.reserve(nodes.size() + 2);
 
-        WorldPosition firstLeg(nodes[0].mapid, nodes[0].x, nodes[0].y, nodes[0].z, 0.0);
+        TaxiPathNodeEntry const* first = TaxiPathNodeListAccess::At(nodes, 0);
+        if (!first)
+            continue;
+
+        WorldPosition firstLeg(first->mapid, first->x, first->y, first->z, 0.0);
         if (startNode->fDist(firstLeg) > 0.1f)
             ppath.push_back(*startNode->getPosition());
 
         for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex)
         {
-            auto const& n = nodes[nodeIndex];
-            WorldPosition leg(n.mapid, n.x, n.y, n.z, 0.0);
+            TaxiPathNodeEntry const* n = TaxiPathNodeListAccess::At(nodes, nodeIndex);
+            if (!n)
+                continue;
+            WorldPosition leg(n->mapid, n->x, n->y, n->z, 0.0);
             if (!leg.isValid() || leg.GetMapId() != startPos.GetMapId())
                 continue;
             ppath.push_back(leg);
