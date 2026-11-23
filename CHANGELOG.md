@@ -196,6 +196,17 @@
 - Fixed: the totem focus no longer cuts a cast already aimed at the totem it focuses.
 - taunt_after_cast now runs on AuraTactics alone (AiPlayerbot.DungeonRunCharmYield is no longer needed).
 
+## v1.31.2 (2026-11-23)
+
+### Classes & Combat
+- A warrior, paladin or druid you set to tank now uses its tank setup and pulls mobs off your healer. [#1685](https://github.com/Sagiroth/TortoiseBots/pull/1685)
+
+### First Start & Travel Map
+- Your first server start now warns that building the bot travel map can take 10–40 minutes, and stopping it means starting over. [#1684](https://github.com/Sagiroth/TortoiseBots/pull/1684)
+- The progress lines now show minutes spent and roughly how many minutes are left. [#1684](https://github.com/Sagiroth/TortoiseBots/pull/1684)
+
+---
+
 ## v1.31.1 (2026-11-23)
 
 ### World & Travel
