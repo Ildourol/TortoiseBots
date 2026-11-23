@@ -1,5 +1,6 @@
 #include "TravelNode.h"
 #include "playerbot/TravelMgr.h"
+#include "playerbot/policy/travel/TravelGraphGenPolicy.h"
 #include "playerbot/policy/travel/TravelRoutePolicy.h"
 #include "playerbot/DungeonFollowHoldPolicy.h"
 
@@ -19,6 +20,7 @@
 #include "playerbot/RandomBotFacade.h"
 #include "Maps/MoveMap.h"
 #include "strategy/values/HazardsValue.h"
+#include "Timer.h"
 
 using namespace ai;
 using namespace MaNGOS;
@@ -442,10 +444,11 @@ void TravelNode::removeLinkTo(TravelNode* node, bool removePaths) {
         routes.erase(node);
     }
     else { //Remove all references to this node.
-        for (auto& node : sTravelNodeMap.GetNodes())
+        for (auto& other : sTravelNodeMap.GetNodes())
         {
-            if (node->hasPathTo(this))
-                node->removeLinkTo(this, removePaths);
+            if (other == this)
+                continue;
+            other->removeLinkTo(this, removePaths);
         }
         links.clear();
         paths.clear();
@@ -1574,6 +1577,9 @@ TravelNode* TravelNodeMap::addNode(WorldPosition pos, std::string preferedName, 
 
 void TravelNodeMap::removeNode(TravelNode* node)
 {
+    if (!node || std::find(m_nodes.begin(), m_nodes.end(), node) == m_nodes.end())
+        return;
+
     node->removeLinkTo(NULL, true);
 
     uint32 mapId = node->GetMapId();
@@ -2841,6 +2847,252 @@ void TravelNodeMap::generateNodes()
     addManualNodes();
 }
 
+namespace
+{
+// Startup walk-link pathfinder: Detour straight on the navmesh, no Unit, no
+// Map. Per-pair corridor tiles stream in via MMapManager::loadMap (single
+// thread at startup). Filter matches a walking player: include NAV_GROUND
+// plus NAV_WATER; extents and 3 yd ceiling mirror PathInfo::FindWalkPoly.
+struct TravelDetourPath
+{
+    PathType type = PATHFIND_BLANK;
+    std::vector<WorldPosition> points;
+};
+
+TravelDetourPath FindTravelWalkPath(uint32 mapId, WorldPosition const& start, WorldPosition const& end)
+{
+    TravelDetourPath out;
+
+    MMAP::MMapManager* mmap = MMAP::MMapFactory::createOrGetMMapManager();
+    if (!mmap)
+        return out;
+
+    start.loadMapAndVMaps(end, 0);
+
+    dtNavMesh const* navMesh = mmap->GetNavMesh(mapId);
+    dtNavMeshQuery const* query = mmap->GetNavMeshQuery(mapId);
+    if (!navMesh || !query)
+        return out;
+
+    dtQueryFilter filter;
+    filter.setIncludeFlags(NAV_GROUND | NAV_WATER);
+    filter.setExcludeFlags(0);
+
+    float startPt[VERTEX_SIZE] = { start.getY(), start.getZ(), start.getX() };
+    float endPt[VERTEX_SIZE] = { end.getY(), end.getZ(), end.getX() };
+
+    float extents[VERTEX_SIZE] = { 5.0f, 10.0f, 5.0f };
+    float closestStart[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
+    float closestEnd[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
+    dtPolyRef startPoly = INVALID_POLYREF, endPoly = INVALID_POLYREF;
+    if (dtStatusFailed(query->findNearestPoly(startPt, extents, &filter, &startPoly, closestStart)) || !startPoly)
+        return out;
+    if (!ai::TravelGenPolySnapAllowed(startPt[1], closestStart[1]))
+        return out;
+    if (dtStatusFailed(query->findNearestPoly(endPt, extents, &filter, &endPoly, closestEnd)) || !endPoly)
+        return out;
+    if (!ai::TravelGenPolySnapAllowed(endPt[1], closestEnd[1]))
+        return out;
+
+    int tx = 0, ty = 0;
+    navMesh->calcTileLoc(startPt, &tx, &ty);
+    if (!navMesh->getTileAt(tx, ty, 0))
+        return out;
+    navMesh->calcTileLoc(endPt, &tx, &ty);
+    if (!navMesh->getTileAt(tx, ty, 0))
+        return out;
+
+    dtPolyRef polyPath[MAX_PATH_LENGTH];
+    uint32 polyCount = 0;
+    dtStatus pathStatus = query->findPath(startPoly, endPoly, closestStart, closestEnd, &filter, polyPath, (int*)&polyCount, MAX_PATH_LENGTH);
+    if (dtStatusFailed(pathStatus) || !polyCount)
+        return out;
+
+    out.type = (polyPath[polyCount - 1] == endPoly) ? PATHFIND_NORMAL : PATHFIND_INCOMPLETE;
+
+    float straight[MAX_POINT_PATH_LENGTH * VERTEX_SIZE];
+    uint8 flags[MAX_POINT_PATH_LENGTH];
+    dtPolyRef straightPolys[MAX_POINT_PATH_LENGTH];
+    int straightCount = 0;
+    if (dtStatusFailed(query->findStraightPath(closestStart, closestEnd, polyPath, polyCount, straight, flags, straightPolys, &straightCount, MAX_POINT_PATH_LENGTH)) || straightCount < 2)
+        return out;
+
+    out.points.reserve(straightCount);
+    for (int i = 0; i < straightCount; ++i)
+        out.points.emplace_back(mapId, straight[i * VERTEX_SIZE + 2], straight[i * VERTEX_SIZE], straight[i * VERTEX_SIZE + 1]);
+
+    return out;
+}
+
+bool LinkTravelNodesDetour(TravelNode* startNode, TravelNode* endNode)
+{
+    TravelNodePath* forward = startNode->getPathTo(endNode);
+    if (forward->getComplete())
+        return startNode->hasLinkTo(endNode);
+
+    std::vector<WorldPosition> path = forward->GetPath();
+    WorldPosition startPos = *startNode->getPosition();
+    WorldPosition endPos = *endNode->getPosition();
+    if (path.empty())
+        path = { startPos };
+
+    std::vector<WorldPosition> fullPath = path;
+    WorldPosition currentPos = fullPath.back();
+    for (uint8 attempt = 0; attempt < 40; ++attempt)
+    {
+        if (currentPos.GetMapId() != endPos.GetMapId())
+        {
+            fullPath.clear();
+            break;
+        }
+        TravelDetourPath step = FindTravelWalkPath(currentPos.GetMapId(), currentPos, endPos);
+        if (step.points.empty() || (step.type != PATHFIND_NORMAL && step.type != PATHFIND_INCOMPLETE))
+            break;
+        if (currentPos.distance(step.points.back()) < sPlayerbotAIConfig.targetPosRecalcDistance)
+            break;
+        fullPath.insert(fullPath.end(), std::next(step.points.begin()), step.points.end());
+        if (endPos.isPathTo(step.points))
+            break;
+        currentPos = step.points.back();
+    }
+    path = fullPath;
+
+    bool canPath = endPos.isPathTo(path);
+
+    if (!canPath && !startNode->isTransport() && !startNode->getAreaTriggerId() && (endNode->GetAreaTriggerId() || endNode->IsTransport()))
+    {
+        if (endPos.isPathTo(path, 20.0f))
+        {
+            if (path.back().distance(endPos) > 1.0f)
+                path.push_back((endPos + path.back()) * 0.5f);
+            path.push_back(endPos);
+            canPath = true;
+        }
+    }
+
+    if (canPath && ai::TravelGenIsTwoPointJump(path.size(), startNode->getDistance(endNode)))
+        canPath = false;
+
+    if (canPath && path.size() > 2)
+    {
+        WorldPosition firstPos = path.front();
+        WorldPosition secondPos = path[1];
+        float vDist = fabsf(firstPos.getZ() - secondPos.getZ());
+        float hDist = firstPos.fDist(secondPos);
+        if (ai::TravelGenEndpointStepTooSteep(vDist, hDist))
+            canPath = false;
+        else
+        {
+            WorldPosition lastPos = path.back();
+            WorldPosition prevPos = path[path.size() - 2];
+            float vEnd = fabsf(lastPos.getZ() - prevPos.getZ());
+            float hEnd = lastPos.fDist(prevPos);
+            if (ai::TravelGenEndpointStepTooSteep(vEnd, hEnd))
+                canPath = false;
+        }
+    }
+
+    forward->setPath(path);
+    forward->setComplete(canPath);
+
+    if (!endNode->hasPathTo(startNode))
+    {
+        TravelNodePath* back = endNode->setPathTo(startNode, TravelNodePath(), false);
+        std::vector<WorldPosition> backPath = path;
+        std::reverse(backPath.begin(), backPath.end());
+        back->setPath(backPath);
+        back->setComplete(canPath);
+        if (canPath)
+            endNode->setLinkTo(startNode);
+    }
+    TravelNodePath* backNodePath = endNode->GetPathTo(startNode);
+
+    if (!canPath)
+    {
+        std::vector<WorldPosition> backPath = backNodePath->GetPath();
+        if (!backPath.empty())
+        {
+            if (backNodePath->getComplete())
+            {
+                std::reverse(backPath.begin(), backPath.end());
+                path = backPath;
+                canPath = backNodePath->getComplete();
+            }
+            else if (path.back().distance(backPath.back()) < 5.0f)
+            {
+                std::reverse(backPath.begin(), backPath.end());
+                path.insert(path.end(), backPath.begin(), backPath.end());
+                canPath = true;
+            }
+        }
+    }
+
+    forward->setPath(path);
+    forward->setComplete(canPath);
+
+    if (canPath && !startNode->hasLinkTo(endNode))
+        startNode->setLinkTo(endNode);
+
+    if (!forward->GetCalculated())
+        forward->calculateCost(true);
+
+    return canPath;
+}
+} // namespace
+
+void TravelNodeMap::generateWalkPathMapSync(uint32 mapId, uint32& donePairs, uint32& linkedPairs, uint32 logEvery, uint32& sinceLog, uint32 totalPairs)
+{
+    for (auto& startNode : sTravelNodeMap.GetNodes(WorldPosition(mapId, 1, 1)))
+    {
+        if (startNode->IsLinked())
+            continue;
+
+        std::vector<TravelNode*> candidates = sTravelNodeMap.GetNodes(*startNode->getPosition(), ai::kTravelGenLinkRadius);
+        uint32 kept = 0;
+        for (auto& endNode : candidates)
+        {
+            if (kept >= ai::kTravelGenMaxLinksPerNode)
+                break;
+
+            if (endNode->IsTransport() && endNode->IsLinked())
+                continue;
+
+            if (startNode == endNode)
+                continue;
+
+            if (startNode->hasCompletePathTo(endNode))
+                continue;
+
+            if (startNode->GetMapId() != endNode->GetMapId())
+                continue;
+
+            if (startNode->hasLinkTo(endNode))
+                continue;
+            if (startNode->hasRouteTo(endNode, true))
+            {
+                TravelNodeRoute existing = sTravelNodeMap.GetRoute(startNode, endNode, nullptr);
+                if (!existing.isEmpty() && ai::TravelGenExistingRouteSufficient(existing.GetTotalDistance(), startNode->getDistance(endNode)))
+                    continue;
+            }
+
+            uint32 linksBefore = (uint32)startNode->GetLinks()->size();
+            if (LinkTravelNodesDetour(startNode, endNode))
+                ++kept;
+            ++donePairs;
+            if (startNode->GetLinks()->size() > linksBefore)
+                ++linkedPairs;
+
+            if (logEvery && ++sinceLog >= logEvery)
+            {
+                sinceLog = 0;
+                sLog.outString("TortoiseBots: travel walk links %u/%u pairs, %u linked.", donePairs, totalPairs, linkedPairs);
+            }
+        }
+
+        startNode->setLinked(true);
+    }
+}
+
 void TravelNodeMap::generateWalkPathMap(uint32 mapId, BarGoLink* bar)
 {
     for (auto& startNode : sTravelNodeMap.GetNodes(WorldPosition(mapId, 1, 1)))
@@ -3095,6 +3347,8 @@ void TravelNodeMap::generateTaxiPaths()
         if (!endTaxiNode)
             continue;
 
+        if (taxiPath->ID >= sTaxiPathNodesByPath.size())
+            continue;
         TaxiPathNodeList const& nodes = sTaxiPathNodesByPath[taxiPath->ID];
 
         if (nodes.empty())
@@ -3102,29 +3356,48 @@ void TravelNodeMap::generateTaxiPaths()
 
         WorldPosition startPos(startTaxiNode->map_id, startTaxiNode->x, startTaxiNode->y, startTaxiNode->z);
         WorldPosition endPos(endTaxiNode->map_id, endTaxiNode->x, endTaxiNode->y, endTaxiNode->z);
+        if (!startPos.isValid() || !endPos.isValid())
+            continue;
 
         TravelNode* startNode = sTravelNodeMap.GetNode(startPos, nullptr, 15.0f);
+        if (!startNode)
+            continue;
         TravelNode* endNode = sTravelNodeMap.GetNode(endPos, nullptr, 15.0f);
-
-        if (!startNode || !endNode)
+        if (!endNode)
+            continue;
+        if (!ai::TravelGenTaxiPathEligible(taxiPath->ID, sTaxiPathNodesByPath.size(), nodes.size(),
+                startPos.GetMapId(), endPos.GetMapId(), startPos.IsOverworld(), endPos.IsOverworld(),
+                startNode == endNode))
             continue;
 
         std::vector<WorldPosition> ppath;
+        ppath.reserve(nodes.size() + 2);
 
-        if (startNode->fDist(WorldPosition(nodes[0].mapid, nodes[0].x, nodes[0].y, nodes[0].z, 0.0)) > 0.1f)
+        WorldPosition firstLeg(nodes[0].mapid, nodes[0].x, nodes[0].y, nodes[0].z, 0.0);
+        if (startNode->fDist(firstLeg) > 0.1f)
             ppath.push_back(*startNode->getPosition());
 
         for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex)
         {
             auto const& n = nodes[nodeIndex];
-            ppath.push_back(WorldPosition(n.mapid, n.x, n.y, n.z, 0.0));
+            WorldPosition leg(n.mapid, n.x, n.y, n.z, 0.0);
+            if (!leg.isValid() || leg.GetMapId() != startPos.GetMapId())
+                continue;
+            ppath.push_back(leg);
         }
+
+        if (ppath.empty())
+            continue;
 
         if (endNode->fDist(ppath.back()) > 0.1f)
             ppath.push_back(*endNode->getPosition());
 
         float totalTime = GetTaxiRouteCost(startPos.GetPathLength(ppath));
 
+        startNode = sTravelNodeMap.GetNode(startPos, nullptr, 15.0f);
+        endNode = sTravelNodeMap.GetNode(endPos, nullptr, 15.0f);
+        if (!startNode || !endNode || startNode == endNode)
+            continue;
         TravelNodePath travelPath(0.1f, totalTime, (uint8)TravelNodePathType::flightPath, i, true);
         travelPath.setPath(ppath);
 
@@ -3150,7 +3423,7 @@ void TravelNodeMap::removeLowNodes()
         std::vector<TravelNode*> nodes = node->GetNodeMap(true);
 
         if (nodes.size() < 5)
-            remNodes.insert(remNodes.end(), nodes.begin(), nodes.end());
+            ai::TravelGenAppendUniqueRemovals(remNodes, nodes);
         else
             goodNodes.insert(goodNodes.end(), nodes.begin(), nodes.end());
     }
@@ -3264,22 +3537,131 @@ void TravelNodeMap::calculatePathCosts()
         calculatePathCosts();
 }
 
+void TravelNodeMap::calculatePathCostsSync()
+{
+    // Inline version of calculatePathCosts: no std::async fan-out (navmesh
+    // tile loading is not thread-safe).
+    uint32 calculated = 0;
+    bool more = true;
+    while (more)
+    {
+        more = false;
+        for (auto& startNode : sTravelNodeMap.GetNodes())
+        {
+            for (auto& path : *startNode->GetLinks())
+            {
+                TravelNodePath* nodePath = path.second;
+                if (nodePath->getPathType() != TravelNodePathType::walk)
+                    continue;
+                if (nodePath->GetCalculated())
+                    continue;
+                nodePath->calculateCost();
+                ++calculated;
+                more = true;
+            }
+        }
+    }
+
+    sLog.outString(">> Calculated cost for %u paths.", calculated);
+}
+
 void TravelNodeMap::generatePaths(bool helpers)
 {
     (void)helpers;
-    sLog.outError("TortoiseBots: travel-node generation is unavailable with the pinned core PathInfo area filter; use persisted nodes or direct movement.");
+    if (m_nodes.empty())
+        return;
+
+    std::map<uint32, bool> nodeMaps;
+    for (auto& startNode : GetNodes())
+        nodeMaps[startNode->GetMapId()] = true;
+
+    uint32 totalPairs = 0;
+    for (auto& entry : nodeMaps)
+        for (auto& startNode : GetNodes(WorldPosition(entry.first, 1, 1)))
+        {
+            if (startNode->IsLinked())
+                continue;
+            uint32 kept = 0;
+            for (auto& endNode : GetNodes(*startNode->getPosition(), ai::kTravelGenLinkRadius))
+            {
+                if (kept >= ai::kTravelGenMaxLinksPerNode)
+                    break;
+                if (startNode == endNode || startNode->GetMapId() != endNode->GetMapId())
+                    continue;
+                ++kept;
+                ++totalPairs;
+            }
+        }
+
+    uint32 logEvery = totalPairs / 25;
+    if (logEvery < 1)
+        logEvery = 1;
+
+    uint32 donePairs = 0, linkedPairs = 0, sinceLog = 0;
+    uint32 startMs = WorldTimer::getMSTime();
+    sLog.outString("TortoiseBots: travel walk links started for %u nodes (%u candidate pairs).", (uint32)GetNodes().size(), totalPairs);
+
+    std::vector<uint32> mapIds;
+    for (auto& entry : nodeMaps)
+        mapIds.push_back(entry.first);
+    std::sort(mapIds.begin(), mapIds.end());
+
+    // Single-threaded: navmesh tile loading is not thread-safe.
+    for (uint32 mapId : mapIds)
+        generateWalkPathMapSync(mapId, donePairs, linkedPairs, logEvery, sinceLog, totalPairs);
+
+    sLog.outString("TortoiseBots: travel walk links done: %u nodes, %u pairs attempted, %u linked (%us).",
+        (uint32)GetNodes().size(), donePairs, linkedPairs, (WorldTimer::getMSTime() - startMs) / 1000);
+
+    // Taxi links run before removeLowNodes so flight-master nodes stay linked
+    // when components are counted.
+    sLog.outString("-Generating taxi paths");
+    generateTaxiPaths();
+
+    sLog.outString("-Removing useless nodes");
+    removeLowNodes();
+    sLog.outString("-Removing useless paths");
+    for (uint32 mapId : mapIds)
+        removeUselessPathMap(mapId);
+
+    printMap();
+
+    sLog.outString("-Calculating path costs");
+    calculatePathCostsSync();
+
+    hasToGen = false;
+    hasToFullGen = false;
+    hasToSave = true;
 }
 
 void TravelNodeMap::generateAll()
 {
     if (m_nodes.empty())
-        return;
+    {
+        if (!sPlayerbotAIConfig.generateTravelNodes)
+        {
+            sLog.outInfo("TortoiseBots: travel-node dataset is empty and AiPlayerbot.GenerateTravelNodes=0; using direct movement.");
+            return;
+        }
+
+        sLog.outString("-Generating nodes");
+        generateNodes();
+        hasToFullGen = true;
+        hasToGen = true;
+        hasToSave = true;
+    }
+    else if (!sPlayerbotAIConfig.generateTravelNodes)
+    {
+        hasToGen = false;
+        hasToFullGen = false;
+    }
 
     if (hasToGen || hasToFullGen)
     {
-        sLog.outError("TortoiseBots: travel-node generation is unavailable with the pinned core PathInfo area filter; use persisted nodes or direct movement.");
-        hasToGen = false;
-        hasToFullGen = false;
+        if (!sPlayerbotAIConfig.generateTravelNodes)
+            sLog.outString("TortoiseBots: travel graph has unlinked nodes; generation is disabled, using direct movement.");
+        else
+            generatePaths(false);
     }
 
     sLog.outString("-Calculating mapoffset");
@@ -3537,16 +3919,12 @@ void TravelNodeMap::loadNodeStore()
         }
         else
         {
-            // A fresh native installation has the optional travel-node tables
-            // but no generated rows. Treat that as an unavailable optional
-            // dataset instead of entering the legacy all-map generator during
-            // world startup; that path is expensive and can dereference
-            // incomplete map data. Travel features remain unavailable until a
-            // populated node store is supplied.
-            hasToFullGen = false;
-            hasToGen = false;
-            sLog.outInfo("TortoiseBots: travel-node dataset is empty or unavailable; skipping startup graph generation");
-            return;
+            // Empty store: generateAll() seeds node locations and runs the
+            // full sync pass below (or skips both when generation is
+            // disabled). No early return: link/path loads below must still
+            // run so a node-only dataset resumes cleanly.
+            hasToFullGen = true;
+            sLog.outInfo("TortoiseBots: travel-node dataset is empty; node seeding starts at startup, walk links follow synchronously");
         }
     }
 

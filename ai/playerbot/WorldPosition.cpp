@@ -5,6 +5,7 @@
 #include "TravelNode.h"
 #include "playerbot/MagmaHazardPolicy.h"
 #include "playerbot/SwimPathPolicy.h"
+#include "playerbot/policy/travel/TravelGraphGenPolicy.h"
 
 #include "Maps/Map.h"
 
@@ -1237,7 +1238,22 @@ bool WorldPosition::isVmapLoaded(uint32 /*mapId*/, int /*x*/, int /*y*/)
 
 bool WorldPosition::isMmapLoaded(uint32 mapId, uint32 instanceId, int x, int y)
 {
-    return MMAP::MMapFactory::createOrGetMMapManager()->GetNavMesh(mapId) != nullptr;
+    (void)instanceId; // Penqle owns one navmesh per map; tiles are not per-instance.
+    MMAP::MMapManager* mmap = MMAP::MMapFactory::createOrGetMMapManager();
+    dtNavMesh const* navMesh = mmap ? mmap->GetNavMesh(mapId) : nullptr;
+    if (!navMesh)
+        return false;
+
+    // Per-tile probe (same as core PathInfo::HaveTiles): Detour swaps world
+    // (x, y) into tile (y, x); pull into the tile interior by a quarter grid
+    // so calcTileLoc does not floor a boundary corner into a neighbour.
+    WorldPosition corner(mapId, mGridPair(x, y));
+    float point[VERTEX_SIZE] = { corner.getY() - SIZE_OF_GRIDS / 4, corner.getZ(), corner.getX() - SIZE_OF_GRIDS / 4 };
+    int tx = 0, ty = 0;
+    navMesh->calcTileLoc(point, &tx, &ty);
+    if (!ai::TravelGenTileCoordsMatch(tx, ty, x, y))
+        return false;
+    return navMesh->getTileAt(tx, ty, 0) != nullptr;
 }
 
 bool WorldPosition::loadMapAndVMap(uint32 mapId, uint32 instanceId, int x, int y)
