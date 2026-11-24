@@ -1239,20 +1239,22 @@ bool WorldPosition::isVmapLoaded(uint32 /*mapId*/, int /*x*/, int /*y*/)
 bool WorldPosition::isMmapLoaded(uint32 mapId, uint32 instanceId, int x, int y)
 {
     (void)instanceId; // Penqle owns one navmesh per map; tiles are not per-instance.
+    if (!ai::TravelGenGridInBounds(x, y, MAX_NUMBER_OF_GRIDS))
+        return false;
+
     MMAP::MMapManager* mmap = MMAP::MMapFactory::createOrGetMMapManager();
     dtNavMesh const* navMesh = mmap ? mmap->GetNavMesh(mapId) : nullptr;
     if (!navMesh)
         return false;
 
-    // Per-tile probe (same as core PathInfo::HaveTiles): Detour swaps world
-    // (x, y) into tile (y, x); pull into the tile interior by a quarter grid
-    // so calcTileLoc does not floor a boundary corner into a neighbour.
+    // Per-tile probe (same as core PathInfo::HaveTiles): pull into the tile
+    // interior by a quarter grid so calcTileLoc does not floor a boundary
+    // corner into a neighbour. Detour tile indices are relative to each map's
+    // own bounding-box origin, so getTileAt(tx, ty, 0) is the sole check.
     WorldPosition corner(mapId, mGridPair(x, y));
     float point[VERTEX_SIZE] = { corner.getY() - SIZE_OF_GRIDS / 4, corner.getZ(), corner.getX() - SIZE_OF_GRIDS / 4 };
     int tx = 0, ty = 0;
     navMesh->calcTileLoc(point, &tx, &ty);
-    if (!ai::TravelGenTileCoordsMatch(tx, ty, x, y))
-        return false;
     return navMesh->getTileAt(tx, ty, 0) != nullptr;
 }
 
@@ -1260,28 +1262,26 @@ bool WorldPosition::loadMapAndVMap(uint32 mapId, uint32 instanceId, int x, int y
 {
     std::string logName = "load_map_grid.csv";
 
-    bool hasMmap = false;
-    if (mapId == 0 || mapId == 1)
-        hasMmap = isMmapLoaded(mapId, 0, x, y);
-    else
-        hasMmap = isMmapLoaded(mapId, instanceId, x, y);
+    if (!ai::TravelGenGridInBounds(x, y, MAX_NUMBER_OF_GRIDS))
+        return false;
 
-    if (hasMmap)
+    uint32 const probeInstance = (mapId == 0 || mapId == 1) ? 0 : instanceId;
+    if (isMmapLoaded(mapId, probeInstance, x, y))
         return true;
 
     if (sTravelMgr.IsBadMmap(mapId, x, y))
         return false;
 
-    bool isLoaded = false;
+    // Penqle owns one navmesh per map; instances do not need a separate load.
+    MMAP::MMapManager* mmap = MMAP::MMapFactory::createOrGetMMapManager();
+    auto const [loadX, loadY] = ai::TravelGenMmapLoadPair(x, y);
+    bool const isLoaded = mmap && mmap->loadMap(mapId, loadX, loadY);
 
-    if (!hasMmap)
-    {
-        // Penqle owns one navmesh per map; instances do not need a separate load.
-        isLoaded = MMAP::MMapFactory::createOrGetMMapManager()->loadMap(mapId, x, y);
-
-        //if (!isLoaded)
-        //    sTravelMgr.AddBadMmap(mapId, x, y);
-    }
+    // Cache missing tiles so ocean/unmeshed grids in a path bounding box do
+    // not hit disk on every visit. Guard with GetNavMesh && !isMmapLoaded
+    // because loadMap also returns false when a tile is already loaded.
+    if (!isLoaded && mmap && mmap->GetNavMesh(mapId) != nullptr && !isMmapLoaded(mapId, probeInstance, x, y))
+        sTravelMgr.AddBadMmap(mapId, x, y);
 
     //if (!hasVmap)
     //{

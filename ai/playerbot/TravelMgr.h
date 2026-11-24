@@ -541,8 +541,14 @@ namespace ai
 		    std::vector<std::pair<WorldPosition, float>>& outPortals) const;
 		float MinSqMapTransDistance(const WorldPosition& start, const WorldPosition& end) const;
 
-		void AddBadMmap(uint32 mapId, int x, int y) { badMmap.push_back(std::make_tuple(mapId, x, y)); }
-		bool IsBadMmap(uint32 mapId, int x, int y) const { return std::find(badMmap.begin(), badMmap.end(), std::make_tuple(mapId, x, y)) != badMmap.end(); }
+		static uint64 PackBadMmapKey(uint32 mapId, int x, int y)
+		{
+			return (static_cast<uint64>(mapId) << 32) |
+			       (static_cast<uint64>(static_cast<uint16>(x)) << 16) |
+			       static_cast<uint64>(static_cast<uint16>(y));
+		}
+		void AddBadMmap(uint32 mapId, int x, int y) { badMmap.insert(PackBadMmapKey(mapId, x, y)); }
+		bool IsBadMmap(uint32 mapId, int x, int y) const { return badMmap.find(PackBadMmapKey(mapId, x, y)) != badMmap.end(); }
 
 		int32 GetAreaLevel(uint32 area_id);
 		void LoadAreaLevels();
@@ -611,7 +617,7 @@ namespace ai
 		std::condition_variable getDestinationVar;
 		uint8 availableDestinationWorkers = 5;
 
-		std::vector<std::tuple<uint32, int, int>> badMmap;
+		std::unordered_set<uint64> badMmap;
 
 		std::unordered_map<std::pair<uint32, uint32>, std::vector<MapTransfer>, MapTransferKeyHash> mapTransfersMap;
 	};
