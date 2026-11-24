@@ -196,6 +196,19 @@
 - Fixed: the totem focus no longer cuts a cast already aimed at the totem it focuses.
 - taunt_after_cast now runs on AuraTactics alone (AiPlayerbot.DungeonRunCharmYield is no longer needed).
 
+## v1.31.3 (2026-11-24)
+
+### Performance & Stability
+- Fixed 1–3 second server pauses caused by bots repeatedly checking for map areas that were already loaded. [#1689](https://github.com/Sagiroth/TortoiseBots/pull/1689)
+- Bots now remember empty ocean areas, so they stop checking the same missing map areas again and again. [#1689](https://github.com/Sagiroth/TortoiseBots/pull/1689)
+
+### World & Travel
+- Bots now load the correct map areas for normal movement and when the travel map is first built. [#1689](https://github.com/Sagiroth/TortoiseBots/pull/1689)
+- Fixed broken travel routes caused by bots mixing up which map areas to load. [#1689](https://github.com/Sagiroth/TortoiseBots/pull/1689)
+- Added a one-time automatic step after updating so the fix applies without you doing anything. [#1689](https://github.com/Sagiroth/TortoiseBots/pull/1689)
+
+---
+
 ## v1.31.2 (2026-11-23)
 
 ### Classes & Combat
