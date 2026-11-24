@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace ai
@@ -70,11 +71,18 @@ namespace ai
         return true;
     }
 
-    // Per-tile navmesh probe: Detour's calcTileLoc swaps world (x, y) grid
-    // axes into (tx == gridY, ty == gridX).
-    inline bool TravelGenTileCoordsMatch(int detourTx, int detourTy, int gridX, int gridY)
+    // Bounds check for 64x64 WoW grid indices before probing or loading tiles.
+    inline bool TravelGenGridInBounds(int gridX, int gridY, int maxGrids)
     {
-        return detourTx == gridY && detourTy == gridX;
+        return gridX >= 0 && gridX < maxGrids && gridY >= 0 && gridY < maxGrids;
+    }
+
+    // MMapManager::loadMap(mapId, gx, gy) expects core GridMap's axis order
+    // (32 - worldY/grid, 32 - worldX/grid), which is the transpose of
+    // WorldPosition::getmGridPair() (32 - worldX/grid, 32 - worldY/grid).
+    inline std::pair<int, int> TravelGenMmapLoadPair(int mGridX, int mGridY)
+    {
+        return { mGridY, mGridX };
     }
 
     // Directed reachability in removeLowNodes: when node A reaches a small

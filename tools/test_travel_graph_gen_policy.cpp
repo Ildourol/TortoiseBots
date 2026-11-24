@@ -185,9 +185,13 @@ int main()
     CHECK(!ai::TravelGenTaxiPathEligible(10, 500, 12, 36, 36, false, false, false));
     CHECK(!ai::TravelGenTaxiPathEligible(10, 500, 12, 0, 0, true, true, true));
 
-    // Per-tile Detour coordinate swap: tx matches gridY, ty matches gridX.
-    CHECK(ai::TravelGenTileCoordsMatch(42, 31, 31, 42));
-    CHECK(!ai::TravelGenTileCoordsMatch(31, 42, 31, 42));
+    // Grid bounds and MMapManager::loadMap axis transpose (Stormwind mGridPair(48, 31) -> loadMap(31, 48)).
+    CHECK(ai::TravelGenGridInBounds(0, 0, 64));
+    CHECK(ai::TravelGenGridInBounds(48, 31, 64));
+    CHECK(ai::TravelGenGridInBounds(63, 63, 64));
+    CHECK(!ai::TravelGenGridInBounds(-1, 31, 64));
+    CHECK(!ai::TravelGenGridInBounds(48, 64, 64));
+    CHECK((ai::TravelGenMmapLoadPair(48, 31) == std::pair<int, int>{ 31, 48 }));
 
     // Directed low-node pruning: overlapping small components (A -> C and B -> C)
     // must not schedule C for deletion twice, and a surviving component (G1..G5)
