@@ -956,8 +956,11 @@ bool UseAction::UseGameObject(Player* requester, Event& event, GameObject* gameO
             return false;
         }
     }
-    else if(gameObject->GetGoType() == GAMEOBJECT_TYPE_DOOR)
+    else if(gameObject->GetGoType() == GAMEOBJECT_TYPE_DOOR || (gameObject->GetGoType() == GAMEOBJECT_TYPE_BUTTON && gameObject->GetGOInfo()->GetLockId()))
     {
+        // A locked button opens with the matching open-lock spell, as a player's click does, so the
+        // core's spell open scripts run; with no such spell it keeps the plain use below.
+        bool const isDoor = gameObject->GetGoType() == GAMEOBJECT_TYPE_DOOR;
         uint32 lockId = gameObject->GetGOInfo()->GetLockId();
         LockEntry const* lockInfo = sLockStore.LookupEntry(lockId);
         if (lockInfo)
@@ -989,7 +992,11 @@ bool UseAction::UseGameObject(Player* requester, Event& event, GameObject* gameO
                             uint32 skillId = SkillByLockType(LockType(lockInfo->Index[j]));
                             if (skillId == SKILL_NONE)
                             {
-                                continue;
+                                // The core opens a skill lock without a skill (open tinkering etc.) with the matching spell.
+                                if (isDoor)
+                                    continue;
+
+                                return true;
                             }
 
                             uint32 skillValue = bot->GetSkillValue(skillId);
@@ -1031,7 +1038,7 @@ bool UseAction::UseGameObject(Player* requester, Event& event, GameObject* gameO
                     return true;
                 }
             }
-            else if (keyRequired > 0)
+            else if (isDoor && keyRequired > 0)
             {
                 std::list<Item*> items = AI_VALUE2(std::list<Item*>, "inventory items", chat->formatQItem(keyRequired));
                 if (!items.empty())
@@ -1052,7 +1059,7 @@ bool UseAction::UseGameObject(Player* requester, Event& event, GameObject* gameO
                 lockTypes[j] = lockInfo->Type[j];
                 lockIndex[j] = lockInfo->Index[j];
             }
-            if (!TortoiseBots::DoorLock::OpensOnPlainUse(lockTypes, lockIndex))
+            if (isDoor && !TortoiseBots::DoorLock::OpensOnPlainUse(lockTypes, lockIndex))
             {
                 std::ostringstream out; out << "I can't open " << chat->formatGameobject(gameObject);
                 ai->TellPlayerNoFacing(requester, out.str(), PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false);
