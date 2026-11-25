@@ -1,4 +1,4 @@
-<img width="2752" height="1536" alt="Gemini_Generated_Image_wvulffwvulffwvul" src="https://github.com/user-attachments/assets/a9a7f76d-b8ac-46f0-a058-30836559fe54" />
+<img width="2752" height="1536" alt="TortoiseBots" src="https://github.com/user-attachments/assets/a9a7f76d-b8ac-46f0-a058-30836559fe54" />
 
 [![Latest release](https://img.shields.io/github/v/release/Sagiroth/TortoiseBots?label=release&logo=github)](https://github.com/Sagiroth/TortoiseBots/releases/latest)
 [![Linux + Windows build](https://img.shields.io/github/actions/workflow/status/Sagiroth/TortoiseBots/build.yml?branch=main&event=push&label=Linux%20%2B%20Windows%20build&logo=github)](https://github.com/Sagiroth/TortoiseBots/actions/workflows/build.yml?query=branch%3Amain)
@@ -7,93 +7,49 @@
 
 # TortoiseBots
 
-An independent, native PlayerBots module for the canonical **Tortoise WoW 1.18.1** core repository ([`tortoise-wow`](https://github.com/tortoise-wow/tortoise-wow), `main` branch). This is an unofficial, community-driven project made for educational purposes, not affiliated with Turtle WoW or Blizzard Entertainment.
-
-TortoiseBots delivers native AI companions through a decoupled C++ architecture: bot AI, combat strategies, and lifecycle management live entirely within this module, while bots run as headless sessions with no game client and character state stays cleanly owned by the core. The core compiles and runs cleanly without the module.
+An independent, native PlayerBots module for **Tortoise WoW 1.18.1** ([`tortoise-wow`](https://github.com/tortoise-wow/tortoise-wow), `main` branch). Bot AI, combat strategies, and lifecycle management live entirely inside this module as decoupled C++ headless sessions with no game client; the core compiles and runs cleanly without it.
 
 > [!TIP]
-> **New here? Start with [Getting Started](docs/play/getting-started.md).**
-> It covers client setup, the [TortoiseBotsManager](https://github.com/Sagiroth/TortoiseBotsManager) (`/tbm`) addon, and bringing your own account alts into your party.
-> Then go through the [feature table](docs/play/features.md) and turn on what you want. Each row says whether it's on by default and which flag enables it.
+> **New here? Start with [Getting Started](docs/play/getting-started.md)** — client setup, [TortoiseBotsManager](https://github.com/TortoiseBots/TortoiseBotsManager) (`/tbm`), bringing alts into your party, and the [feature table](docs/play/features.md).
 
-### 🐢 Vision
+## Highlights
 
-TortoiseBots should make Tortoise WoW feel like a living, populated vanilla server for a player who plays alone. The player levels and gears up at their own pace, and bots fill the world and their group the way real players would.
+- **Living world & earned progression:** Autonomous pool bots level, quest, grind, travel by foot/flight/boat, and trade on the Auction House with their own loot and gold.
+- **Player control first:** Adventure with account alts or hired mercenaries; explicit `.bot` orders always override automation.
+- **Combat, dungeons & PvP:** Nine-class rotations with Turtle 1.18.1 custom abilities, LoS pullback pulls, CC discipline, wipe recovery, LFT backfill, and WSG/AB/AV matchmaking.
+- **Observability:** Live 2D browser map, Prometheus metrics, structured CSV logs, and in-game `/tbm` panel.
 
-- **Organic living world:** Pool bots quest, grind and travel by foot, flight path and boat. A fresh pool is spread over levels 5-60 so every zone has people from day one (the server can start everyone at level 1 instead). Long-range teleports are a stuck-recovery safety net, not normal movement.
-- **Earned progression:** A new pool bot gets a starter outfit and some coin once, when it is created. After that there are no gold top-ups, gear handouts or made-up auction house listings by default: equipment and gold come from playing the game.
-- **Player control first:** Explicit player orders always override automation. Extra automation for player-owned bots sits behind opt-in configuration flags.
-- **Modern AI standard:** Gameplay and class AI adapt modern mod-playerbots behavior to Vanilla 1.12 and Turtle WoW 1.18.1 content.
-
-### ✨ Highlights
-
-- [Your Party](docs/play/features.md#your-party-owned-bots-hiring-following-commands): Adventure with your own account alts or hire mercenaries at inn recruiters; command formations, follow behavior, and tactical actions.
-- [Combat & Classes](docs/play/features.md#combat--classes): Tailored combat rotations for all nine classes, Turtle custom abilities, interrupt coordination, and spec-based roles.
-- [Dungeons & Raids](docs/play/features.md#dungeons--raids): Corner pullback line-of-sight pulls, CC protection, boss encounter tactics, hazard avoidance, and wipe recovery.
-- [The Living World](docs/play/features.md#the-living-world-pool-bots-leveling-questing-wandering): Autonomous pool bots level, quest and grind, learn their class spells as they level up, gather materials, and travel by foot and flight path.
-- [Social Systems](docs/play/features.md#social-invites-guilds-trading): Roaming bots invite solo questers to groups, join your guild when you invite them, and take guild orders to farm, buy or craft items for the guild bank.
-- [Living Economy](docs/play/features.md#economy-auction-house): Pool bots sell their own loot on the Auction House and buy upgrades with their own gold (on by default).
-- [Dungeon Finder & PvP](docs/play/features.md#dungeon-finder--battlegrounds): Looking for Turtles queue backfill for missing roles and battleground matchmaking for WSG, AB, and AV.
-- [Server & Monitoring](docs/play/features.md#server--monitoring-dashboard-logs): Live browser map, Prometheus telemetry metrics, in-game bot panel, and structured CSV logging.
-
-## 📚 Documentation
-
-Detailed guides, class breakdowns, commands, and architecture rules live in the documentation catalog:
-
-| Guide / Reference | Description |
-| :--- | :--- |
-| **[Getting Started](docs/play/getting-started.md)** | **Start here:** client setup, `/tbm` addon, summoning alts, and first party setup |
-| [What Bots Can Do](docs/play/features.md) | Feature catalog, defaults, and configuration toggle flags |
-| [Documentation Start Page](docs/README.md) | Central switchboard, quick task finder, and audience directory |
-| [Player Commands](docs/play/commands/README.md) | Complete `.bot` command reference, whisper syntax, and tactical intents |
-| [Class AI & Rotations](docs/classes/overview.md) | Rotations, specs, and Turtle WoW 1.18.1 custom abilities for all classes |
-| [Dungeon & Raid Tactics](docs/play/dungeons-and-raids.md) | Line-of-sight pullback pulls, CC discipline, and wipe recovery |
-| [Living World & Economy](docs/world/living-world.md) | Autonomous roaming, questing, vendor trips, and gear |
-| [Configuration & Tuning](docs/server/configuration.md) | Plain-English settings reference, presets, and configuration files |
-| [Observability Dashboard](docs/server/dashboard.md) | Real-time web dashboard, 2D live map, and Prometheus metrics |
-| [Architecture Invariants](docs/developers/architecture.md) | Decoupled C++ rules, headless sessions, and host boundary seams |
-
-## 🛠️ Quick Build
+## Quick Build
 
 Inside your `tortoise-wow` (`main` branch) checkout:
 
 ```bash
-# Clone module into modules/
 git clone https://github.com/Sagiroth/TortoiseBots.git modules/TortoiseBots
-
-# Configure and compile
 cmake -B build -DMODULES=static -DMODULE_TORTOISEBOTS=static
 cmake --build build -j"$(nproc)"
 ```
 
-Install puts `aiplayerbot.conf.dist` next to `mangosd.conf` and creates `aiplayerbot.conf` and `modules/tortoise_bots.conf` from their templates on the first install only; a reinstall keeps your edited files. Module SQL in the source-tree `data/sql/world` and `data/sql/character` is applied by the core auto-updater on startup. See [Configuration & Tuning](docs/server/configuration.md) for available settings.
+Install copies `aiplayerbot.conf.dist` next to `mangosd.conf` and creates `aiplayerbot.conf` and `modules/tortoise_bots.conf` on first install only. Module SQL in `data/sql/world` and `data/sql/character` is applied automatically on startup.
 
-A startup line `Migration ... for module TortoiseBots exists in DB but not as file, old migration?` is harmless: the database remembers a migration whose file has since changed. The module cleans up its known old rows on its own. If the lines stay, or after editing world tables by hand, reload `tw_world` from the core's `sql/base` files and restart; the updater reapplies every migration on first launch.
+## Documentation
 
-## 🙏 Credit
+| Area | Topics |
+|---|---|
+| [Knowledge index](knowledge/index.md) | [Vision & Architecture](knowledge/architecture/overview.md), [Features & Gameplay](knowledge/play/features.md), [Build & Configuration](knowledge/operations/build-and-config.md) |
+| [Full guides (`docs/`)](docs/README.md) | [Getting Started](docs/play/getting-started.md), [Player Commands](docs/play/commands/README.md), [Class AI](docs/classes/overview.md), [Dungeons & Raids](docs/play/dungeons-and-raids.md), [Living World](docs/world/living-world.md), [Configuration](docs/server/configuration.md), [Dashboard](docs/server/dashboard.md), [Architecture](docs/developers/architecture.md) |
 
-TortoiseBots is made by **Sagiroth**. Forks, repacks, Docker bundles, videos and
-public servers are welcome — please credit it. Ready to paste:
+## Credit & Support
+
+TortoiseBots is made by **Sagiroth**. Forks, repacks, Docker bundles, videos, and public servers are welcome — please credit it:
 
 ```text
 Playerbots: TortoiseBots by Sagiroth — https://github.com/Sagiroth/TortoiseBots
 ```
 
-The in-game login message and `.bot version` / `.bot about` show the project attribution line (`by Sagiroth`, source URL, licence); keep it visible in
-modified builds (see [`NOTICE.md`](NOTICE.md#attribution-author-notice)).
+Keep the in-game attribution line (`by Sagiroth`, source URL, licence) visible in modified builds (see [`NOTICE.md`](NOTICE.md#attribution-author-notice)). Optional support: [**Ko-fi**](https://ko-fi.com/sagiroth).
 
-### ☕ Support
+## Licence
 
-If you enjoy TortoiseBots and would like to support its development, you can
-buy me a coffee on [**Ko-fi**](https://ko-fi.com/sagiroth). It's completely
-optional: every feature stays free and open for everyone.
+Dual-licensed under **AGPL-3.0-or-later** ([`LICENSE`](LICENSE)) or **GPL-2.0-or-later** ([`LICENSE-GPL-2.0`](LICENSE-GPL-2.0)); a few donor-derived files stay AGPL-only. See [`NOTICE.md`](NOTICE.md) and [`docs/developers/licensing-audit.md`](docs/developers/licensing-audit.md).
 
-## 📜 License & Provenance
-
-Original TortoiseBots work is dual-licensed under **AGPL-3.0-or-later** ([`LICENSE`](LICENSE)) **or GPL-2.0-or-later** ([`LICENSE-GPL-2.0`](LICENSE-GPL-2.0)), your choice; a few donor-derived files stay AGPL-only. Contributions are accepted under the same terms. Donor code keeps its own notices (GPL-2.0-or-later / AGPL-3.0 lineages). See [`NOTICE.md`](NOTICE.md) and [`docs/developers/licensing-audit.md`](docs/developers/licensing-audit.md).
-
-**Disclaimer:**
-+
-- TortoiseBots is a non-commercial hobby project. Donations (Ko-fi) only support development. They buy no access, features or service, and are not tied to any server.
-- The author is not affiliated with any server that uses this code, and is not responsible for how third parties use it.
-- Not affiliated with Turtle WoW or its creators. World of Warcraft is a trademark of Blizzard Entertainment; this project is not affiliated with Blizzard.
+Non-commercial community project made for educational purposes. Donations only support development and buy no access or service. Not affiliated with Turtle WoW or Blizzard Entertainment.
