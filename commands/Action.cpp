@@ -47,8 +47,10 @@
 #include "../ai/playerbot/strategy/actions/EquipAction.h"
 #include "../ai/playerbot/strategy/actions/UnequipAction.h"
 #include "../ai/playerbot/strategy/actions/SellAction.h"
+#include "../ai/playerbot/strategy/actions/RepairAllAction.h"
 #include "../ai/playerbot/strategy/actions/UseItemAction.h"
 #include "../ai/playerbot/policy/gear/SellRefusalPolicy.h"
+#include "../ai/playerbot/policy/gear/RepairRefusalPolicy.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "playerbot/PlayerbotFactory.h"
 // pi-lens-ignore: clang:pp_file_not_found
@@ -1248,6 +1250,7 @@ bool HandleAction(ChatHandler* handler, char const* args)
     // Per-bot reasons a rest order did not start, for the refusal (#916).
     std::vector<std::pair<std::string, std::string>> restRefusals;
     std::vector<std::string> sellRefusals;
+    std::vector<std::string> repairRefusals;
     for (Player* bot : scope)
     {
         // Scope entries are resolved live from ObjectAccessor, but earlier
@@ -1488,6 +1491,8 @@ bool HandleAction(ChatHandler* handler, char const* args)
         else if (intent == "repair")
         {
             accepted = ExecuteQuietAction(ai, "repair", ai::Event(intent, "repair", requester));
+            if (!accepted)
+                repairRefusals.push_back(ai::RepairAllAction::RefusalReason(ai));
         }
         else if (intent == "sell")
         {
@@ -1590,6 +1595,12 @@ bool HandleAction(ChatHandler* handler, char const* args)
     if (!succeeded && intent == "sell")
     {
         SendActionError(handler, intent, "failed", ai::FormatSellRefusal(sellRefusals).c_str());
+        return true;
+    }
+
+    if (!succeeded && intent == "repair")
+    {
+        SendActionError(handler, intent, "failed", ai::FormatRepairRefusal(repairRefusals).c_str());
         return true;
     }
 
