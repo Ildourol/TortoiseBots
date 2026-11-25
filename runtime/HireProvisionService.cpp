@@ -1996,6 +1996,11 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
                     TortoiseBots::ReleaseReplacedItem(bot, offhand);
             uint16 eDest = 0;
             Item* owned = FindBagCopy(bot, row->itemId);
+            // Moving a bag copy into a slot needs a living owner (core
+            // SwapItem refuses a dead player); a dead bot gets a fresh copy
+            // like every other gear path.
+            if (owned && !bot->IsAlive())
+                owned = nullptr;
             if (owned)
             {
                 // Re-equip the copy the bot already owns instead of making a
