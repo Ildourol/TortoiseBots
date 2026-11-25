@@ -19,12 +19,12 @@
 #include "../../runtime/GearSeedQualityPolicy.h"
 #include "../../runtime/policy/provision/GearBlacklistPolicy.h"
 #include "../../runtime/PlayerAutogearPolicy.h"
+#include "../../runtime/ReplacedGear.h"
 #include "../../runtime/PoolGearTopUpPolicy.h"
 #include "Database/DBCStores.h"
 
 #include "Database/SQLStorages.h"
 #include "Objects/ItemPrototype.h"
-#include "Mail/Mail.h"
 #include "playerbot/PlayerbotAIConfig.h"
 #include "AccountMgr.h"
 #include "Database/DBCStore.h"
@@ -207,42 +207,6 @@ void PlayerbotFactory::AutogearPlayer(uint32 specId, uint32 ilvlCap, bool raised
     playerUpgrade = false;
     playerRaisedCeiling = false;
     bot->SaveToDB();
-}
-
-// A real player never loses a replaced piece: to the bags, or to their own
-// mailbox (no expiry) when the bags are full. Same remove/store/mail pattern
-// as the core's AutoUnequipItemFromSlot; the receiver is the owner, so the
-// usual soulbound mail restriction is moot.
-bool PlayerbotFactory::StoreReplacedItem(Item* oldItem)
-{
-    if (!bot || !oldItem)
-        return true;
-
-    uint8 const bag = oldItem->GetBagSlot();
-    uint8 const slot = oldItem->GetSlot();
-    ItemPosCountVec dest;
-    if (bot->CanStoreItem(NULL_BAG, NULL_SLOT, dest, oldItem, false) == EQUIP_ERR_OK)
-    {
-        // StoreItem (not MoveItemToInventory): the piece already has a
-        // character_inventory row, so the save must run an UPDATE
-        // (ITEM_CHANGED), not an INSERT (ITEM_NEW) — same pattern as the
-        // core's AutoUnequipItemFromSlot.
-        bot->RemoveItem(bag, slot, true);
-        bot->StoreItem(dest, oldItem, true);
-        return true;
-    }
-
-    bot->MoveItemFromInventory(bag, slot, true);
-    CharacterDatabase.BeginTransaction(bot->GetGUIDLow());
-    oldItem->DeleteFromInventoryDB();
-    oldItem->SaveToDB();
-    CharacterDatabase.CommitTransaction();
-    MailDraft draft("Replaced by autogear", "Your previous equipment is attached.");
-    draft.AddItem(oldItem);
-    // expire_delay UINT32_MAX: the core's mail row keeps the items ~136 years,
-    // i.e. no expiry (0 would give the default 30 days).
-    draft.SendMailTo(MailReceiver(bot), MailSender(bot, MAIL_STATIONERY_GM), MAIL_CHECK_MASK_COPIED, 0, 0xFFFFFFFF);
-    return false;
 }
 
 bool PlayerbotFactory::HasAmmoInBagsFor(uint32 weaponSubClass)
@@ -995,7 +959,7 @@ public:
             return true;
         }
 
-        bot->DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
+        TortoiseBots::ReleaseReplacedItem(bot, item);
         return true;
     }
 
@@ -1674,7 +1638,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                 {
                     sLog.outDetail("Bot #%d <%s>: clearing stale offhand %u under 2H main hand",
                         bot->GetGUIDLow(), bot->GetName(), stillEquipped->GetEntry());
-                    bot->DestroyItem(stillEquipped->GetBagSlot(), stillEquipped->GetSlot(), true);
+                    TortoiseBots::ReleaseReplacedItem(bot, stillEquipped);
                 }
             }
         }
@@ -1798,7 +1762,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                     if (RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, newItemId) == EQUIP_ERR_OK)
                     {
                         if (oldItem)
-                            bot->DestroyItem(oldItem->GetBagSlot(), oldItem->GetSlot(), true);
+                            TortoiseBots::ReleaseReplacedItem(bot, oldItem);
 
                         Item* pItem = bot->EquipNewItem(eDest, newItemId, true);
                         if (pItem)
@@ -2229,7 +2193,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                             if (bot->CanStoreItem(NULL_BAG, NULL_SLOT, offDest, displacedOff, false) != EQUIP_ERR_OK)
                             {
                                 displacedOldId = displacedOff->GetProto()->ItemId;
-                                displacedMailed = !StoreReplacedItem(displacedOff);
+                                displacedMailed = TortoiseBots::ReleaseReplacedItem(bot, displacedOff) == TortoiseBots::ReplacedGearOutcome::Mailed;
                                 displacedStored = true;
                                 autogearUpgrades.push_back({EQUIPMENT_SLOT_OFFHAND, displacedOldId, 0, displacedMailed});
                                 canEquip = RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, newItemId);
@@ -2244,7 +2208,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                             if (!displacedStored)
                             {
                                 displacedOldId = displacedOff->GetProto()->ItemId;
-                                displacedMailed = !StoreReplacedItem(displacedOff);
+                                displacedMailed = TortoiseBots::ReleaseReplacedItem(bot, displacedOff) == TortoiseBots::ReplacedGearOutcome::Mailed;
                                 displacedStored = true;
                                 autogearUpgrades.push_back({EQUIPMENT_SLOT_OFFHAND, displacedOldId, 0, displacedMailed});
                             }
@@ -2254,12 +2218,12 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                         {
                             if (playerUpgrade)
                             {
-                                toBags = StoreReplacedItem(oldItem);
+                                toBags = TortoiseBots::ReleaseReplacedItem(bot, oldItem) != TortoiseBots::ReplacedGearOutcome::Mailed;
                                 oldStoredMailed = !toBags;
                                 oldItem = nullptr;
                             }
                             else
-                                bot->DestroyItem(oldItem->GetBagSlot(), oldItem->GetSlot(), true);
+                                TortoiseBots::ReleaseReplacedItem(bot, oldItem);
                         }
                         Item* pItem = bot->EquipNewItem(eDest, newItemId, true);
                         if (pItem)
@@ -2331,7 +2295,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
         if (!found && !keepsWornGear)
             if (Item* worn = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
                 if (worn->GetProto() && sRandomItemMgr.IsForbiddenBotGear(worn->GetProto()->ItemId))
-                    bot->DestroyItem(worn->GetBagSlot(), worn->GetSlot(), true);
+                    TortoiseBots::ReleaseReplacedItem(bot, worn);
         if (!found && !bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot) &&
             slot != EQUIPMENT_SLOT_BODY && slot != EQUIPMENT_SLOT_TABARD)
         {
@@ -2564,7 +2528,7 @@ void PlayerbotFactory::InitLevelBags()
         uint16 eDest = 0;
         if (RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, tierBag) != EQUIP_ERR_OK)
             continue;
-        bot->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
+        TortoiseBots::ReleaseReplacedItem(bot, bagItem);
         Item* pItem = bot->EquipNewItem(eDest, tierBag, true);
         if (pItem)
             sLog.outDetail("Bot %d got level-tier bag %s (%u slots)", bot->GetGUIDLow(), tierProto->Name1, tierSlots);
@@ -3848,7 +3812,7 @@ void PlayerbotFactory::InitAmmo()
                     upgradeSlot = bagSlot;
                     continue;
                 }
-                bot->DestroyItem(INVENTORY_SLOT_BAG_0, bagSlot, true);
+                TortoiseBots::ReleaseReplacedItem(bot, bagItem);
             }
             if (!haveGood && !upgradeTarget)
             {
@@ -3906,7 +3870,7 @@ void PlayerbotFactory::InitAmmo()
                     uint16 eDest;
                     if (RandomBotFacade::CanEquipUnseenItem(bot, upgradeSlot, eDest, quiverId) == EQUIP_ERR_OK)
                     {
-                        bot->DestroyItem(INVENTORY_SLOT_BAG_0, upgradeSlot, true);
+                        TortoiseBots::ReleaseReplacedItem(bot, upgradeTarget);
                         bot->EquipNewItem(eDest, quiverId, true);
                     }
                 }

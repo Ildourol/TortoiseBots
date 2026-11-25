@@ -19,6 +19,7 @@
 #include "AhBotSellerAccount.h"
 #include "StartZoneBalance.h"
 #include "GearSeedingGuard.h"
+#include "ReplacedGear.h"
 #include "policy/provision/GearBlacklistPolicy.h"
 #include "policy/pvp/WorldPvpSeekPolicy.h"
 #include "../ai/playerbot/PlayerbotAI.h"
@@ -1529,7 +1530,7 @@ void BotManager::OnPlayerLogin(::Player* player)
             if (worn && worn->GetProto() &&
                 TortoiseBots::GearBlacklistBlocks(sPlayerbotAIConfig.randomGearBlacklist, worn->GetProto()->ItemId))
             {
-                player->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
+                ReleaseReplacedItem(player, worn);
                 stripped = true;
             }
         }

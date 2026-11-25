@@ -272,8 +272,6 @@ private:
     // level 20 (TortoiseBots::GearQualityFloor). Player autogear, hired
     // companion provisioning and re-gearing leave it false and keep the old floors.
     bool freshPoolSeed = false;
-    // Bags first, mailbox when the bags are full; false when mailed.
-    bool StoreReplacedItem(Item* oldItem);
     // Generated-gear item-level cap: how far above its own level a bot's
     // *generated* gear may sit (TortoiseBots::GearItemLevelCap). Set through
     // UsePoolGearCap() / UseStandardHireGearCap() by the passes that serve pool

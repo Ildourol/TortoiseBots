@@ -206,7 +206,7 @@ Evaluates a bot's level and automatically equips level-appropriate equipment up 
 .bot autogear <CharacterName> [quality|ilvl]
 ```
 
-Set [`AiPlayerbot.OwnedBotAutogearEnabled`](../../server/settings/party.md#aiplayerbotownedbotautogearenabled) to `1` first (off by default). Defaults to uncommon (green) gear unless specified (e.g. `blue` or `200`). Ranged weapons are selected to match existing ammunition in the bot's bags. Note: autogear hands out no ammo; hunter ammunition must be stocked separately.
+Set [`AiPlayerbot.OwnedBotAutogearEnabled`](../../server/settings/party.md#aiplayerbotownedbotautogearenabled) to `1` first (off by default). Defaults to uncommon (green) gear unless specified (e.g. `blue` or `200`). Ranged weapons are selected to match existing ammunition in the bot's bags. Replaced items go to the bot's bags (mailed when the bags are full, with no expiry); nothing is destroyed. Note: autogear hands out no ammo; hunter ammunition must be stocked separately.
 
 For real players, use [`.autogear`](#autogear) instead — `.bot autogear` only works on owned or hired bots.
 
@@ -221,7 +221,7 @@ Gears one bot, or every bot of a commander's bound group, to a hire gear tier un
 ```
 
 The named bot must be online and a bot; `raid <Commander>` gears every bot of the commander's bound group (the lead bot's group when bound, else the commander's own group). Each bot must be level 60, alive and in the world; the kit is the hire tier for the bot's class and its talent spec (the role decides when the spec cannot be read), and skipped slots are reported as capped when the cap holds them back.
-Bag items the bot had before the call are never destroyed: above-cap pieces already in the bags stay, and only a created-then-unused piece is removed. A worn piece the kit replaces is destroyed, the same way hire provisioning swaps a hire's gear (bots only; real players are refused); anything still worn above the cap is moved to the bags. The pin holds afterwards, across logout and login: the bot will not auto-equip an above-cap piece again until another `.bot gear` sets a new cap (or no cap), the hire is dismissed, or the character is deleted. Real players are never targets.
+Bag items the bot had before the call are never destroyed: above-cap pieces already in the bags stay, and only a created-then-unused piece is removed. A worn piece the kit replaces is kept: the bot's bags, or its own mailbox when the bags are full (hire provisioning swaps a hire's gear the same way). A masterless pool bot has no player behind it and clears the piece instead. Anything still worn above the cap is moved to the bags. The pin holds afterwards, across logout and login: the bot will not auto-equip an above-cap piece again until another `.bot gear` sets a new cap (or no cap), the hire is dismissed, or the character is deleted. Real players are never targets.
 
 Named presets live in [`AiPlayerbot.BotGearPresets`](../../server/settings/hiring.md#aiplayerbotbotgearpresets) (`lkh`, `zg`, `aq20`, `timbermaw`, `onyxia`, `mc`, `bwl`, `es`, `aq40`, `naxx`, `kara40`, `prebis`, `t1`, `t2`).
 

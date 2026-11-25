@@ -2,6 +2,7 @@
 #include "../ai/playerbot/GroupMembers.h"
 #include "HireProvisionService.h"
 #include "HireCost.h"
+#include "ReplacedGear.h"
 #include "BotNameService.h"
 #include "HireLifecycle.h"
 #include "CommandedGroupQuery.h"
@@ -1925,7 +1926,7 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
         if (row->itemId == 0)
         {
             if (oldItem)
-                bot->DestroyItem(oldItem->GetBagSlot(), oldItem->GetSlot(), true);
+                TortoiseBots::ReleaseReplacedItem(bot, oldItem);
             continue;
         }
         // A blocked row is skipped entirely: never equipped, never enchanted.
@@ -1941,12 +1942,12 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
             ItemPrototype const* proto = sObjectMgr.GetItemPrototype(row->itemId);
             if (slot == EQUIPMENT_SLOT_MAINHAND && proto && proto->InventoryType == INVTYPE_2HWEAPON)
                 if (Item* offhand = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND))
-                    bot->DestroyItem(offhand->GetBagSlot(), offhand->GetSlot(), true);
+                    TortoiseBots::ReleaseReplacedItem(bot, offhand);
             uint16 eDest = 0;
             if (RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, row->itemId) != EQUIP_ERR_OK)
                 continue;
             if (oldItem)
-                bot->DestroyItem(oldItem->GetBagSlot(), oldItem->GetSlot(), true);
+                TortoiseBots::ReleaseReplacedItem(bot, oldItem);
             if (!bot->EquipNewItem(eDest, row->itemId, true))
                 continue;
         }
