@@ -41,6 +41,21 @@ class BotGearWiringTest(unittest.TestCase):
         self.assertIn("BotGear::RowAllowed(", PROVISION_CPP)
         self.assertIn("cappedSlots->push_back(", PROVISION_CPP)
 
+    def test_pool_pass_fills_only_kit_uncovered_slots(self):
+        # A pool pass over a slot the kit covers displaces the piece the bot
+        # already wore, and the kit then creates a fresh copy: the bags grow and
+        # every repeat mails the old piece. Only the uncovered slots may be
+        # filled, and a kit row the bot already owns is re-equipped, never
+        # duplicated (a max_count 1 row is otherwise refused and skipped).
+        self.assertIn("PoolFillSlotMask(", strip_comments(SERVICE))
+        self.assertIn("AutogearOwned(ITEM_QUALITY_EPIC, m_job.args.ilvlCap, hasKit ? poolSlots : 0)", strip_comments(SERVICE))
+        talents = strip_comments((ROOT / "ai/playerbot/strategy/actions/ChangeTalentsAction.cpp").read_text())
+        self.assertIn("PoolFillSlotMask(", talents)
+        self.assertIn("AutogearOwned(ITEM_QUALITY_EPIC, mode.ilvlCap, poolSlots)", talents)
+        kit = strip_comments(PROVISION_CPP)
+        self.assertIn("FindBagCopy(bot, row->itemId)", kit)
+        self.assertIn("bot->SwapItem(owned->GetPos()", kit)
+
     def test_service_gears_then_purges(self):
         auto = SERVICE.index("AutogearOwned(ITEM_QUALITY_EPIC")
         kit = SERVICE.index("EquipHireGearSet(")
