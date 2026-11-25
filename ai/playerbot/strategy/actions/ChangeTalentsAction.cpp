@@ -288,10 +288,10 @@ void ChangeTalentsAction::RespecHireGearKit(Player* bot, std::ostringstream& out
         ai->SetForcedRole(role);
     else
         role = ai->GetForcedRole();
-    uint32 specNo = sRandomBotFacade.GetValue(bot->GetGUIDLow(), "specNo");
-    std::string pathName = specNo > 0 ? GetPremadePathName(cls, static_cast<int>(specNo - 1)) : std::string();
-    int specIndex = TortoiseBots::HireSpecIndexForPathName(cls, pathName.c_str(), role);
-    char const* specKey = TortoiseBots::ResolveHireGearSpecKey(cls, specIndex, role);
+    // The applied talents plus the role just stored are the one spec read;
+    // the stored premade path can lag behind a manual talent link.
+    char const* specKey = TortoiseBots::ResolveHireGearKeyForTab(cls,
+        AiFactory::GetKitSpecTab(bot, ai), (role & ai::BOT_ROLE_TANK) != 0);
     if (!specKey)
         return;
     if (TortoiseBots::HireProvisionService::EquipHireGearSet(bot, ai, cls, specKey, bot->GetRace(), tier))

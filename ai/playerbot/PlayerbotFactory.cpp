@@ -1171,7 +1171,7 @@ void PlayerbotFactory::AddItemSpellStats(uint32 smod, uint8& sp, uint8& ap, uint
 
 bool PlayerbotFactory::CanEquipWeapon(ItemPrototype const* proto)
 {
-   int tab = AiFactory::GetPlayerSpecTab(bot);
+   int tab = AiFactory::GetKitSpecTab(bot);
 
    switch (bot->GetClass())
    {

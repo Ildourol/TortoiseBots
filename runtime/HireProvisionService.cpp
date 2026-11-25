@@ -1888,7 +1888,10 @@ void HireProvisionService::ProvisionHireGear(Player* bot, PendingProvision const
     if (!HireGearTierEligible(bot->GetLevel(), sPlayerbotAIConfig.hireGearTiersEnabled, tier))
         return;
     uint8_t forcedRole = pending.role ? pending.role : DefaultRoleForClass(bot->GetClass());
-    char const* specKey = ResolveHireGearSpecKey(bot->GetClass(), pending.specIndex, forcedRole);
+    // Key the set off the build the provisions actually applied (talents plus
+    // the role), not the requested menu row: a fallback spec gets its own kit.
+    char const* specKey = ResolveHireGearKeyForTab(bot->GetClass(),
+        AiFactory::GetKitSpecTab(bot, ai), (forcedRole & ai::BOT_ROLE_TANK) != 0);
     if (!specKey)
         return;
     if (EquipHireGearSet(bot, ai, bot->GetClass(), specKey, bot->GetRace(), tier))

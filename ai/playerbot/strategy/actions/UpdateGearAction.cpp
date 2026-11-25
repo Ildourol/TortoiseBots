@@ -19,54 +19,15 @@ bool UpdateGearAction::Execute(Event& event)
 {
     Player* requester = event.GetOwner() ? event.GetOwner() : GetMaster();
 
-    // Get bot class and spec
+    // Get bot class and spec. The kit tab is the one spec read: talent points
+    // plus the forced role, the same source the strategies and item scoring
+    // use.
     const uint8 cls = bot->GetClass();
-    uint8 spec = AiFactory::GetPlayerSpecTab(bot);
-
-    // Spec is overridden by bot role
-    if (cls == CLASS_WARRIOR)
-    {
-        if (ai->IsTank(bot))
-        {
-            spec = 2;
-        }
-    }
-    else if (cls == CLASS_PALADIN)
-    {
-        if (ai->IsHeal(bot))
-        {
-            spec = 0;
-        }
-        else if (ai->IsTank(bot))
-        {
-            spec = 1;
-        }
-    }
-    else if (cls == CLASS_PRIEST)
-    {
-        if (ai->IsHeal(bot))
-        {
-            spec = 1;
-        }
-    }
-    else if (cls == CLASS_SHAMAN)
-    {
-        if (ai->IsHeal(bot))
-        {
-            spec = 2;
-        }
-    }
-    else if (cls == CLASS_DRUID)
-    {
-        if (ai->IsHeal(bot))
-        {
-            spec = 2;
-        }
-        else if (ai->IsTank(bot))
-        {
-            spec = 3;
-        }
-    }
+    uint8 spec = static_cast<uint8>(AiFactory::GetKitSpecTab(bot, ai));
+    // The progression table carries a fourth row for the Feral tank build;
+    // the talent tab alone cannot tell bear from cat.
+    if (cls == CLASS_DRUID && spec == 1 && ai->IsTank(bot))
+        spec = 3;
 
     const uint8 avgProgressionLevel = GetMasterAverageProgressionLevel();
 

@@ -3042,7 +3042,9 @@ void RandomItemMgr::ClassifySourceTier(ItemPrototype const* proto, ItemInfoEntry
 std::string RandomItemMgr::GetPlayerSpecName(Player* player)
 {
     std::string specName;
-    int tab = AiFactory::GetPlayerSpecTab(player);
+    // One spec source for gear and strategies: a forced role (`.bot role`,
+    // the addon spec buttons) decides the tree where it names one.
+    int tab = AiFactory::GetKitSpecTab(player);
     switch (player->GetClass())
     {
     case CLASS_PRIEST:

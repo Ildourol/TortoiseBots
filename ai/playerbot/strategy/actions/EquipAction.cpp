@@ -912,5 +912,25 @@ bool EquipUpgradesAction::Execute(Event& event)
     if (forceUsageChanged && !sPlayerbotAIConfig.bExplicitDbStoreSave)
         sPlayerbotDbStore.Save(ai);
 
+    if (!didEquip && !equippedBags)
+    {
+        // A bare "failed" left the player guessing: a role or spec change makes
+        // bag gear score as a downgrade and nothing else happens. An explicit
+        // order gets the reason; the periodic audit stays silent.
+        Player* requester = event.GetOwner();
+        if (requester && requester != bot)
+        {
+            if (items.empty())
+            {
+                std::string const spec = sRandomItemMgr.GetPlayerSpecName(bot);
+                ai->TellError(requester, "Nothing equipped: no item in the bags scores as an upgrade for " +
+                    (spec.empty() ? std::string("this class") : spec) + ".");
+            }
+            else
+                ai->TellError(requester, "Nothing equipped: " + std::to_string(items.size()) +
+                    " bag candidate(s) found no legal slot (the slot is taken, or the bags are full).");
+        }
+    }
+
     return didEquip || equippedBags;
 }

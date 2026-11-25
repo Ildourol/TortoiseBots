@@ -157,11 +157,47 @@ static void TestOwnSpecKey()
     CHECK(ResolveHireGearKeyForPath(6, "fury", kHireRoleDps) == nullptr);
 }
 
+// Talent tab + tank read pick the same keys every gear pass uses: the tab is
+// the one spec source (AiFactory::GetKitSpecTab), so a paladin's holy tab can
+// never key a retribution set and a feral druid's tab alone cannot pick bear.
+static std::string TabKey(uint8_t classId, int tab, bool tank)
+{
+    char const* key = ResolveHireGearKeyForTab(classId, tab, tank);
+    return key ? std::string(key) : std::string("<none>");
+}
+
+static void TestTabKey()
+{
+    CHECK(TabKey(kHireClassWarrior, 0, false) == "arms");
+    CHECK(TabKey(kHireClassWarrior, 1, false) == "fury");
+    CHECK(TabKey(kHireClassWarrior, 2, true) == "protection");
+    CHECK(TabKey(kHireClassPaladin, 0, false) == "holy");
+    CHECK(TabKey(kHireClassPaladin, 1, true) == "protection");
+    CHECK(TabKey(kHireClassPaladin, 2, false) == "retribution");
+    CHECK(TabKey(kHireClassPriest, 0, false) == "discipline");
+    CHECK(TabKey(kHireClassPriest, 1, false) == "holy");
+    CHECK(TabKey(kHireClassPriest, 2, false) == "shadow");
+    CHECK(TabKey(kHireClassShaman, 0, false) == "elemental");
+    CHECK(TabKey(kHireClassShaman, 1, false) == "enhancement");
+    CHECK(TabKey(kHireClassShaman, 1, true) == "tank");
+    CHECK(TabKey(kHireClassShaman, 2, false) == "restoration");
+    CHECK(TabKey(kHireClassMage, 0, false) == "arcane");
+    CHECK(TabKey(kHireClassMage, 2, false) == "frost");
+    CHECK(TabKey(kHireClassDruid, 0, false) == "balance");
+    CHECK(TabKey(kHireClassDruid, 1, true) == "bear");
+    CHECK(TabKey(kHireClassDruid, 1, false) == "cat");
+    CHECK(TabKey(kHireClassDruid, 2, false) == "restoration");
+    CHECK(TabKey(kHireClassWarrior, 3, false) == "<none>");
+    CHECK(TabKey(kHireClassWarrior, -1, false) == "<none>");
+    CHECK(TabKey(6, 0, false) == "<none>");
+}
+
 int main()
 {
     TestSpecKeys();
     TestRoleFallback();
     TestOwnSpecKey();
+    TestTabKey();
     TestEffectiveTier();
     TestEligibility();
     TestLookup();
