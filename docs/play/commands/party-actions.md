@@ -381,20 +381,26 @@ Toggles corpse looting on scoped bots.
 
 ### `.bot action repair`
 
-Repairs scoped bots' gear at a nearby repair merchant.
+Repairs scoped bots' gear at a nearby repair npc.
 
 ```text
 .bot action repair
 ```
 
+- Any npc with the repair flag works, including a summoned field repair bot such as the engineering ones or the donation shop's Field Repair Bot 75B.
+- Bots must be within interaction range (5 yards) of it.
+- If nothing repairs, the reply says why: nothing to repair, no repair npc nearby, no repair npc in reach (the nearest is N yards away), or a repair npc is in reach but cannot be used.
+
 ### `.bot action sell`
 
-Sells scoped bots' gray junk at a nearby stocked vendor.
+Sells scoped bots' gray junk at a nearby vendor.
 
 ```text
 .bot action sell
 ```
 
+- Any npc with the vendor flag works, including a repair bot that buys unwanted goods; it does not need stock on sale.
+- Bots must be within interaction range (5 yards) of it.
 - If nothing sells, the reply says why.
 - Reasons: nothing grey to sell, no vendor in reach, or no grey item the bot will sell here.
 

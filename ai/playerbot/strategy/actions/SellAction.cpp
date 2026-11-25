@@ -1,6 +1,7 @@
 
 #include "playerbot/playerbot.h"
 #include "SellAction.h"
+#include "ServiceNpcsInReach.h"
 #include "playerbot/strategy/ItemVisitors.h"
 #include "playerbot/strategy/values/ItemUsageValue.h"
 #include "playerbot/strategy/values/MaintenanceValues.h"
@@ -197,10 +198,11 @@ std::string SellAction::RefusalReason(PlayerbotAI* botAI)
     std::string const greyFilter = "gray";
     std::size_t const greyItems = botAI->InventoryParseItems(greyFilter, IterateItemsMask::ITERATE_ITEMS_IN_BAGS).size();
     bool vendorInReach = false;
-    std::list<ObjectGuid> vendors = botAI->GetAiObjectContext()->GetValue<std::list<ObjectGuid> >("nearest npcs")->Get();
-    for (ObjectGuid const& vendorguid : vendors)
+    // A stockless vendor-flagged npc still buys (the sell opcode needs no
+    // stock), so only the interaction check decides "in reach".
+    for (Creature* candidate : ServiceCreaturesInReach(player))
     {
-        if (HasVendorStock(player->GetNPCIfCanInteractWith(vendorguid, UNIT_NPC_FLAG_VENDOR)))
+        if (player->GetNPCIfCanInteractWith(candidate->GetObjectGuid(), UNIT_NPC_FLAG_VENDOR))
         {
             vendorInReach = true;
             break;
@@ -278,21 +280,21 @@ bool SellAction::Sell(Player* requester, Item* item)
     }
 
     std::ostringstream out;
-    std::list<ObjectGuid> vendors = ai->GetAiObjectContext()->GetValue<std::list<ObjectGuid> >("nearest npcs")->Get();
 
-    for (std::list<ObjectGuid>::iterator i = vendors.begin(); i != vendors.end(); ++i)
+    // Only the interaction window matters. Reading the creatures from the map
+    // instead of the cached "nearest npcs" value keeps a summoned repair bot
+    // (a temporary summon or a player's companion) sellable like a merchant.
+    for (Creature* candidate : ServiceCreaturesInReach(bot))
     {
-        ObjectGuid vendorguid = *i;
-        Creature *pCreature = bot->GetNPCIfCanInteractWith(vendorguid,UNIT_NPC_FLAG_VENDOR);
+        Creature *pCreature = bot->GetNPCIfCanInteractWith(candidate->GetObjectGuid(), UNIT_NPC_FLAG_VENDOR);
         if (!pCreature)
             continue;
 
-        // #404: Terry Palin (entry 1650) carries the vendor flag but no npc_vendor rows, so
-        // every gossip hello at him prints a core outErrorDb line ("empty trading item list"). World
-        // DB data - never touched from the module - so skip flagged-but-stockless NPCs before
-        // interacting: quest givers like Palin (quest 60042) are still served via the quest verbs.
-        if (!HasVendorStock(pCreature))
-            continue;
+        // Terry Palin (entry 1650) carries the vendor flag but no npc_vendor
+        // rows, so listing his inventory prints a core outErrorDb line. A sale
+        // needs no stock (HandleSellItemOpcode only checks the flag), and a
+        // field repair bot may carry none, so stock is only a requirement for
+        // the errand and buy paths that list an inventory.
         if (!item->GetProto()->SellPrice)
         {
             if(ai->HasActivePlayerMaster())
@@ -301,6 +303,7 @@ bool SellAction::Sell(Player* requester, Item* item)
             continue;
         }
 
+        ObjectGuid vendorguid = pCreature->GetObjectGuid();
         ObjectGuid itemguid = item->getObjectGuid();
         uint32 count = item->GetCount();
 
