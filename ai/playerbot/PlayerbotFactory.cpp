@@ -945,10 +945,10 @@ bool PlayerbotFactory::SelectPremadeSpecNo()
     return true;
 }
 
-class DestroyItemsVisitor : public IterateItemsVisitor
+class ClearItemsVisitor : public IterateItemsVisitor
 {
 public:
-    DestroyItemsVisitor(Player* bot) : IterateItemsVisitor(), bot(bot) {}
+    ClearItemsVisitor(Player* bot) : IterateItemsVisitor(), bot(bot) {}
 
     virtual bool Visit(Item* item) override
     {
@@ -1452,7 +1452,7 @@ static uint32 CountEquippedCopies(Player* player, uint32 itemId)
 void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool progressive, bool partialUpgrade, uint32 maxItemLevelOverride)
 {
     // Bots below level 5 stay in their starting outfit: gear DB has little for them,
-    // and specId is often 0 at low levels which would strip them naked (DestroyItemsVisitor
+    // and specId is often 0 at low levels which would strip them naked (ClearItemsVisitor
     // runs before the specId guard). Level 5 aligns with AcceptQuestAction's breadcrumb gate.
     if (bot->GetLevel() < 5)
     {
@@ -1484,7 +1484,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
 
     if (!incremental)
     {
-        DestroyItemsVisitor visitor(bot);
+        ClearItemsVisitor visitor(bot);
         ai->InventoryIterateItems(&visitor, IterateItemsMask::ITERATE_ITEMS_IN_EQUIP);
     }
 
