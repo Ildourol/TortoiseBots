@@ -17,6 +17,24 @@
 
 using namespace ai;
 
+namespace
+{
+    // Only the interaction window matters. Reading the creatures from the map
+    // instead of the cached "nearest npcs" value keeps a summoned repair bot
+    // (a temporary summon or a player's companion) sellable like a merchant.
+    Creature* FindSellVendor(Player* bot)
+    {
+        if (!bot)
+            return nullptr;
+
+        for (Creature* candidate : ServiceCreaturesInReach(bot))
+            if (Creature* vendor = bot->GetNPCIfCanInteractWith(candidate->GetObjectGuid(), UNIT_NPC_FLAG_VENDOR))
+                return vendor;
+
+        return nullptr;
+    }
+}
+
 class SellItemsVisitor : public IterateItemsVisitor
 {
 public:
@@ -80,7 +98,11 @@ bool SellAction::Execute(Event& event)
     bool const isAltBot = TortoiseBots::AltBotService::Instance().IsAutonomous(bot->GetObjectGuid()) ||
         (!sRandomBotFacade.IsRandomBot(bot) && event.GetSource() == "rpg action");
 
-    for (std::list<Item*>::iterator i = items.begin(); i != items.end(); ++i)
+    //One reach scan for the whole batch: the vendor does not change during the
+    //sale, and a bot that is at no vendor would sell nothing anyway.
+    Creature* const vendor = FindSellVendor(bot);
+
+    for (std::list<Item*>::iterator i = items.begin(); vendor && i != items.end(); ++i)
     {
         // Issue #489: Claimed bots never auto-vendor gear at level 60, and never vendor blue/epic items while leveling
         if (isClaimed && event.GetSource() == "rpg action")
@@ -107,7 +129,7 @@ bool SellAction::Execute(Event& event)
                 continue;
         }
 
-        if (Sell(requester, *i))
+        if (Sell(requester, *i, vendor))
             soldItems++;
 
         if (!allOrNothing && event.GetSource() == "rpg action" && soldItems >= shouldSell)
@@ -175,9 +197,10 @@ bool SellAction::Sell(Player* requester, FindItemVisitor* visitor)
     bool didSell = false;
     ai->InventoryIterateItems(visitor, IterateItemsMask::ITERATE_ITEMS_IN_BAGS);
     std::list<Item*> items = visitor->GetResult();
-    for (std::list<Item*>::iterator i = items.begin(); i != items.end(); ++i)
+    Creature* const vendor = FindSellVendor(bot);
+    for (std::list<Item*>::iterator i = items.begin(); vendor && i != items.end(); ++i)
     {
-        didSell |= Sell(requester, *i);
+        didSell |= Sell(requester, *i, vendor);
     }
 
     return didSell;
@@ -197,17 +220,9 @@ std::string SellAction::RefusalReason(PlayerbotAI* botAI)
     Player* player = botAI->GetBot();
     std::string const greyFilter = "gray";
     std::size_t const greyItems = botAI->InventoryParseItems(greyFilter, IterateItemsMask::ITERATE_ITEMS_IN_BAGS).size();
-    bool vendorInReach = false;
     // A stockless vendor-flagged npc still buys (the sell opcode needs no
     // stock), so only the interaction check decides "in reach".
-    for (Creature* candidate : ServiceCreaturesInReach(player))
-    {
-        if (player->GetNPCIfCanInteractWith(candidate->GetObjectGuid(), UNIT_NPC_FLAG_VENDOR))
-        {
-            vendorInReach = true;
-            break;
-        }
-    }
+    bool const vendorInReach = FindSellVendor(player) != nullptr;
     return SellRefusalReason(greyItems, vendorInReach);
 }
 
@@ -240,6 +255,11 @@ std::list<Item*> SellAction::VendorSaleStock(PlayerbotAI* ai, bool includeAH)
 }
 
 bool SellAction::Sell(Player* requester, Item* item)
+{
+    return Sell(requester, item, FindSellVendor(bot));
+}
+
+bool SellAction::Sell(Player* requester, Item* item, Creature* vendor)
 {
     bool didSell = false;
     // A dungeon run's given item is never sold: the run takes it back.
@@ -279,60 +299,47 @@ bool SellAction::Sell(Player* requester, Item* item)
         }
     }
 
+    if (!vendor)
+        return false;
+
     std::ostringstream out;
 
-    // Only the interaction window matters. Reading the creatures from the map
-    // instead of the cached "nearest npcs" value keeps a summoned repair bot
-    // (a temporary summon or a player's companion) sellable like a merchant.
-    for (Creature* candidate : ServiceCreaturesInReach(bot))
+    // Terry Palin (entry 1650) carries the vendor flag but no npc_vendor
+    // rows, so listing his inventory prints a core outErrorDb line. A sale
+    // needs no stock (HandleSellItemOpcode only checks the flag), and a
+    // field repair bot may carry none, so stock is only a requirement for
+    // the errand and buy paths that list an inventory.
+    if (!item->GetProto()->SellPrice)
+        return false;
+
+    ObjectGuid vendorguid = vendor->GetObjectGuid();
+    ObjectGuid itemguid = item->getObjectGuid();
+    uint32 count = item->GetCount();
+
+    uint32 botMoney = bot->GetMoney();
+
+    sPlayerbotAIConfig.logEvent(ai, "SellAction", item->GetProto()->Name1, std::to_string(item->GetProto()->ItemId));
+
+    WorldPacket p;
+    p << vendorguid << itemguid << count;
+    bot->GetSession()->HandleSellItemOpcode(p);
+
+    if (ai->HasCheat(BotCheatMask::gold))
     {
-        Creature *pCreature = bot->GetNPCIfCanInteractWith(candidate->GetObjectGuid(), UNIT_NPC_FLAG_VENDOR);
-        if (!pCreature)
-            continue;
-
-        // Terry Palin (entry 1650) carries the vendor flag but no npc_vendor
-        // rows, so listing his inventory prints a core outErrorDb line. A sale
-        // needs no stock (HandleSellItemOpcode only checks the flag), and a
-        // field repair bot may carry none, so stock is only a requirement for
-        // the errand and buy paths that list an inventory.
-        if (!item->GetProto()->SellPrice)
-        {
-            if(ai->HasActivePlayerMaster())
-                out << "Unable to sell " << chat->formatItem(item);
-
-            continue;
-        }
-
-        ObjectGuid vendorguid = pCreature->GetObjectGuid();
-        ObjectGuid itemguid = item->getObjectGuid();
-        uint32 count = item->GetCount();
-
-        uint32 botMoney = bot->GetMoney();
-
-        sPlayerbotAIConfig.logEvent(ai, "SellAction", item->GetProto()->Name1, std::to_string(item->GetProto()->ItemId));
-
-        WorldPacket p;
-        p << vendorguid << itemguid << count;
-        bot->GetSession()->HandleSellItemOpcode(p);
-
-        if (ai->HasCheat(BotCheatMask::gold))
-        {
-            bot->SetMoney(botMoney);
-        }
-
-        out << "Selling " << chat->formatItem(item);
-        if (sPlayerbotAIConfig.globalSoundEffects)
-            bot->PlayDistanceSound(120);
-
-        didSell = true;
-
-        // A vendor run is autonomous AI; the per-item "Selling X" whisper
-        // reaches /say or party chat when the requester is another pool bot.
-        // Keep the confirmation for a live player; else stay silent.
-        if (requester && isRealPlayer_Helper(requester))
-            ai->TellPlayer(requester, out, PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false);
-        break;
+        bot->SetMoney(botMoney);
     }
+
+    out << "Selling " << chat->formatItem(item);
+    if (sPlayerbotAIConfig.globalSoundEffects)
+        bot->PlayDistanceSound(120);
+
+    didSell = true;
+
+    // A vendor run is autonomous AI; the per-item "Selling X" whisper
+    // reaches /say or party chat when the requester is another pool bot.
+    // Keep the confirmation for a live player; else stay silent.
+    if (requester && isRealPlayer_Helper(requester))
+        ai->TellPlayer(requester, out, PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false);
 
     return didSell;
 }

@@ -77,7 +77,7 @@ The table below lists all primary commands and links to their authoritative docu
 | [`.bot action sap`](party-actions.md#bot-action-sap) | Tactical Action | Configures rogue pre-pull Sap behavior on CC marks. |
 | [`.bot action aoe`](party-actions.md#bot-action-aoe) | Tactical Action | Toggles area-of-effect abilities across the party. |
 | [`.bot action loot`](party-actions.md#bot-action-loot) | Tactical Action | Toggles corpse looting across scoped bots. |
-| [`.bot action repair`](party-actions.md#bot-action-repair) | Tactical Action | Directs party bots to repair at a nearby vendor. |
+| [`.bot action repair`](party-actions.md#bot-action-repair) | Tactical Action | Directs party bots to repair at a nearby repair npc. |
 | [`.bot action sell`](party-actions.md#bot-action-sell) | Tactical Action | Directs party bots to sell gray junk items. |
 | [`.bot action rest`](party-actions.md#bot-action-rest) | Tactical Action | Orders party bots to consume food and drink. |
 | [`.bot action release`](party-actions.md#bot-action-release) | Tactical Action | Commands dead bots to release spirit to graveyard. |

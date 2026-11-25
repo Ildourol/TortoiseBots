@@ -45,7 +45,7 @@ Companion bots follow special navigation rules inside dungeons and raids to avoi
 | [`.bot action sap`](#bot-action-sap) | Controller | Rogue / None | Toggles pre-pull Sap behavior on CC marks. |
 | [`.bot action aoe`](#bot-action-aoe) | Controller | None | Toggles area-of-effect spells across party bots. |
 | [`.bot action loot`](#bot-action-loot) | Controller | None | Toggles corpse looting on or off. |
-| [`.bot action repair`](#bot-action-repair) | Controller | None | Orders bots to repair gear at a nearby vendor. |
+| [`.bot action repair`](#bot-action-repair) | Controller | None | Orders bots to repair gear at a nearby repair npc. |
 | [`.bot action sell`](#bot-action-sell) | Controller | None | Orders bots to sell gray junk items to vendor. |
 | [`.bot action rest`](#bot-action-rest) | Controller | None | Orders bots to sit and consume food and drink. |
 | [`.bot action release`](#bot-action-release) | Controller | None | Commands dead companion bots to release spirit. |

@@ -12,6 +12,9 @@ namespace ai
 
         bool Sell(Player* requester, FindItemVisitor* visitor);
         bool Sell(Player* requester, Item* item);
+        // Same sale against an already resolved vendor, so a batch pays for one
+        // reach scan instead of one per item.
+        bool Sell(Player* requester, Item* item, Creature* vendor);
 
         // True when the NPC actually has vendor stock (npc_vendor rows or template rows).
         // A flagged-but-stockless NPC (entry 1650) only prints a core "empty trading

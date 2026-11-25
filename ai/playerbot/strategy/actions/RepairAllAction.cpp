@@ -2,6 +2,8 @@
 #include "RepairAllAction.h"
 #include "ServiceNpcsInReach.h"
 
+#include <cmath>
+
 #include "playerbot/ServerFacade.h"
 #include "playerbot/policy/gear/RepairRefusalPolicy.h"
 
@@ -64,8 +66,10 @@ std::string RepairAllAction::RefusalReason(PlayerbotAI* ai)
     if (nearest && yards <= INTERACTION_DISTANCE)
         repairNpcInReach = true;
 
+    // An out-of-reach distance rounds up: "the nearest is 5 yards away" at a
+    // 5-yard reach would read like a contradiction.
     return RepairRefusalReason(anythingToRepair, repairNpcInReach,
-        nearest ? int(yards + 0.5f) : -1);
+        nearest ? int(std::ceil(yards)) : -1);
 }
 
 bool RepairAllAction::Execute(Event& event)
@@ -143,6 +147,9 @@ bool RepairAllAction::Execute(Event& event)
 
         SET_AI_VALUE(uint32, "death count", 0);
         RESET_AI_VALUE(uint8, "durability inventory");
+
+        if (!repaired)
+            ai->TellPlayerNoFacing(requester, "Cannot repair: " + RefusalReason(ai));
 
         return repaired;
     }
