@@ -473,7 +473,7 @@ RollVote RollAction::CalculateRollVote(ItemQualifier& itemQualifier, RollVote* f
 
     // Gear the bot will wear once it levels up is still an upgrade for it.
     bool const futureUpgrade = needVote != ROLL_NEED && usage != ItemUsage::ITEM_USAGE_FORCE_GREED &&
-        ItemUsageValue::IsFutureUpgrade(itemQualifier, bot);
+        ItemUsageValue::IsFutureUpgrade(itemQualifier, bot, ai);
     if (futureUpgrade)
         needVote = ROLL_NEED;
 
@@ -491,7 +491,7 @@ RollVote RollAction::CalculateRollVote(ItemQualifier& itemQualifier, RollVote* f
     const ItemPrototype* itemProto = itemQualifier.GetProto();
     bool sharedLoot = group && (group->GetLootMethod() == GROUP_LOOT || group->GetLootMethod() == NEED_BEFORE_GREED);
     bool groupLootContext = sharedLoot || (map && (map->IsDungeon() || map->IsRaid()));
-    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot);
+    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot, ai);
     if (!specId)
         specId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
 
@@ -837,12 +837,12 @@ Player* RollAction::FindBetterFittingMember(ObjectGuid lootGuid, uint32 slot, It
 
         // A bot that only lacks the level still counts: it wants it as a future upgrade.
         if (member->CanUseItem(itemProto) != EQUIP_ERR_OK &&
-            !(isMemberBot && ItemUsageValue::IsFutureUpgrade(itemQualifier, member)))
+            !(isMemberBot && ItemUsageValue::IsFutureUpgrade(itemQualifier, member, memberAi)))
             continue;
 
         if (isMemberBot)
         {
-            uint32 memberSpecId = sRandomItemMgr.GetPlayerSpecId(member);
+            uint32 memberSpecId = sRandomItemMgr.GetPlayerSpecId(member, memberAi);
             if (!memberSpecId)
                 memberSpecId = sRandomItemMgr.GetFallbackSpecId(member->GetClass());
             std::string memberSpecName = sRandomItemMgr.GetSpecName(memberSpecId);
@@ -856,7 +856,7 @@ Player* RollAction::FindBetterFittingMember(ObjectGuid lootGuid, uint32 slot, It
                 continue;
 
             ItemUsage memberUsage = memberAi->GetAiObjectContext()->GetValue<ItemUsage>("item usage", itemQualifier.GetQualifier())->Get();
-            if (memberUsage != ItemUsage::ITEM_USAGE_EQUIP && !ItemUsageValue::IsFutureUpgrade(itemQualifier, member))
+            if (memberUsage != ItemUsage::ITEM_USAGE_EQUIP && !ItemUsageValue::IsFutureUpgrade(itemQualifier, member, memberAi))
                 continue;
 
             // A member that cannot take it (unique already owned, loot rules) leaves it to the others.

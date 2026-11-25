@@ -313,7 +313,7 @@ Master switch for static best-in-slot gear progression tiers on hired companions
 
 Enables pre-enchanted static equipment tiers (tiers 1 through 7) for level 60 hired companions.
 
-When set to `0`, companions receive only randomly generated level-appropriate gear without tier progression or enchants.
+When set to `0`, companions receive only randomly generated level-appropriate gear without tier progression or enchants. A kit a bot already has recorded (its hire kit or a `.bot gear` pin) is not stripped, and a later spec change still refits that kit at the same tier and cap.
 
 </details>
 

@@ -9,5 +9,9 @@ namespace ai
     public:
         RepairAllAction(PlayerbotAI* ai) : ChatCommandAction(ai, "repair") {}
         virtual bool Execute(Event& event) override;
+
+        // What a repair order that repaired nothing says why: `.bot action
+        // repair`, the TBM Repair button.
+        static std::string RefusalReason(PlayerbotAI* botAI);
     };
 }

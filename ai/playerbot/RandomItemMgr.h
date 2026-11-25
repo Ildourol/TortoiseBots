@@ -233,8 +233,8 @@ class RandomItemMgr
         uint8 GetBotEnchantMinLevel(uint32 spellId, uint8 slotId);
         uint32 CalculateRandomPropertyWeight(uint8 playerclass, uint8 spec, int32 randomPropertyId);
         uint32 CalculateStatWeight(uint8 playerclass, uint8 spec, ItemPrototype const* proto, ItemSpecType &itSpec);
-        uint32 ItemStatWeight(Player* player, ItemQualifier& qualifier);
-        uint32 ItemStatWeight(Player* player, Item* item);
+        uint32 ItemStatWeight(Player* player, ItemQualifier& qualifier, PlayerbotAI* facade = nullptr);
+        uint32 ItemStatWeight(Player* player, Item* item, PlayerbotAI* facade = nullptr);
 
         uint32 CalculateSingleStatWeight(uint8 playerclass, uint8 spec, std::string stat, int32 value);
         bool CanEquipArmor(uint8 clazz, uint8 spec, uint32 level, ItemPrototype const* proto);
@@ -247,13 +247,17 @@ class RandomItemMgr
         // talents) evaluate against the bot's learned talents.
         bool ShouldEquipWeaponForSpec(Player const* bot, uint8 playerclass, uint8 spec, ItemPrototype const* proto, bool canDualWield = true);
         bool ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, ItemPrototype const* proto, bool canDualWield = true);
+        // The slot-aware implementation of the two above: answers for the
+        // concrete slot the item is evaluated for, or for "any weapon slot"
+        // (main hand checked first) when slot is EQUIPMENT_SLOT_END. The
+        // spec's sets are slot-specific; checking only the requested slot is
+        // what keeps a holdable out of a caster's main hand and a one-hander
+        // out of the off hand. slot is a raw EquipmentSlots value.
+        bool ShouldEquipWeaponForSpecInSlot(Player const* bot, uint8 playerclass, uint8 spec, ItemPrototype const* proto, uint8 slot, bool canDualWield);
         // Slot-aware twin: answers for the concrete slot the item is evaluated
-        // for. The plain overload answers "legal in ANY slot" (main hand is
-        // checked first), so a 1H weapon reads as spec-legal for protection
-        // and the audit equips bag 1H weapons over the shield, ping-ponging
-        // against the shield-transition. Warriors/paladins use the policy
-        // header (SpecWeaponPolicy.h); other classes fail open to the plain
-        // answer. slot is a raw EquipmentSlots value (core header type).
+        // for. Shield specs and slot-constrained classes use the policy header
+        // (SpecWeaponPolicy.h); every other class asks
+        // ShouldEquipWeaponForSpecInSlot.
         bool ShouldEquipWeaponForSlot(Player const* bot, uint8 playerclass, uint8 spec, ItemPrototype const* proto, uint8 slot, bool canDualWield = true);
         bool ShouldEquipWeaponForSlot(uint8 playerclass, uint8 spec, ItemPrototype const* proto, uint8 slot, bool canDualWield = true);
         bool CheckItemSpec(uint8 spec, ItemSpecType itSpec);
@@ -287,8 +291,8 @@ class RandomItemMgr
         // whitelisted, items with no known source, retired or test data,
         // item level 0 outside shirt/tabard, and legendary or better.
         bool IsForbiddenBotGear(uint32 itemId);
-        std::string GetPlayerSpecName(Player* player);
-        uint32 GetPlayerSpecId(Player* player);
+        std::string GetPlayerSpecName(Player* player, PlayerbotAI* facade = nullptr);
+        uint32 GetPlayerSpecId(Player* player, PlayerbotAI* facade = nullptr);
         // Issue #189 Phase 2: unknown-spec fallback. Spent talents decide
         // when present; otherwise a class-generic spec so gear never skips
         // entirely (fail-open scoring, still filtered by weapon rules).

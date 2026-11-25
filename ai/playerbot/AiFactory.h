@@ -36,10 +36,12 @@ public:
 
 public:
     static int GetPlayerSpecTab(const Player* player);
-    // The tab the default strategy kits are built from: the talent tab, except
-    // that a warrior's or paladin's protection tab gives way to a damage (or,
-    // for a paladin, healing) tab when the bot's forced role leaves out tanking.
+    // The tab the default strategy kits and every gear pass are read from:
+    // the talent tab, corrected by the bot's forced role (a forced tank, or a
+    // healer on a class with a single healing tree, gets that tree's tab).
     static int GetKitSpecTab(const Player* player, PlayerbotAI* const facade);
+    // The same read for callers that have no facade at hand (gear scoring).
+    static int GetKitSpecTab(const Player* player);
     static std::map<uint32, int32> GetPlayerSpecTabs(const Player* player);
     static BotRoles GetPlayerRoles(uint8 cls, uint8 specTab);
     static BotRoles GetPlayerRoles(const Player* player);

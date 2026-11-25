@@ -33,6 +33,11 @@ public:
     bool FindRow(uint8_t classId, char const* spec, uint8_t race,
         uint8_t tier, uint8_t slot, HireGearRow const*& out) const;
 
+    // Slots the kit leaves alone at this tier and cap: the only ones a pool
+    // pass may fill before the kit runs (see HireGearPoolFillSlotMask).
+    uint32_t PoolFillSlotMask(uint8_t classId, char const* spec, uint8_t race,
+        uint8_t tier, uint32_t ilvlCap) const;
+
     size_t RowCount() const;
 
 private:

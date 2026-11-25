@@ -68,7 +68,9 @@ public:
     // The ranged pick fits the ammo already in the bags (bow/crossbow with
     // arrows, gun with bullets), see OwnedBotAcceptRangedPick; no ammo is
     // handed out here.
-    void AutogearOwned(uint32 cappedQuality, uint32 ilvlCap);
+    // onlySlots limits the pass to those equipment slots (0 = every slot).
+    // A tier kit's covered slots are left out: the kit equips those itself.
+    void AutogearOwned(uint32 cappedQuality, uint32 ilvlCap, uint32 onlySlots = 0);
     // Real-player `.autogear`: the same incremental candidate pool and score
     // as AutogearOwned, with a forced spec (the caller resolves the name to a
     // weightscale id) and no bot AI anywhere. Upgrades only; the replaced
@@ -257,9 +259,6 @@ private:
     uint32 slotMask = 0;
     PlayerbotAI* ai;
     Player* bot;
-    // Set only by AutogearOwned: InitEquipment then filters the ranged slot
-    // by the ammo the bags hold.
-    bool ammoAwareRanged = false;
     // Set only by AutogearPlayer: InitEquipment runs with the forced spec,
     // never destroys anything and reports every slot it upgrades.
     bool playerUpgrade = false;
@@ -272,8 +271,6 @@ private:
     // level 20 (TortoiseBots::GearQualityFloor). Player autogear, hired
     // companion provisioning and re-gearing leave it false and keep the old floors.
     bool freshPoolSeed = false;
-    // Bags first, mailbox when the bags are full; false when mailed.
-    bool StoreReplacedItem(Item* oldItem);
     // Generated-gear item-level cap: how far above its own level a bot's
     // *generated* gear may sit (TortoiseBots::GearItemLevelCap). Set through
     // UsePoolGearCap() / UseStandardHireGearCap() by the passes that serve pool

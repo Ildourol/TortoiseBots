@@ -1520,6 +1520,8 @@ void BotManager::OnPlayerLogin(::Player* player)
     // Pool and hired bots seeded before an item joined the gear blacklist still
     // wear it; their slot is not re-geared until a level-up, so strip it here
     // and let the normal gear pass fill the slot with a fitting piece.
+    // Destroyed for good: the equip audit does not check the blacklist, so a
+    // stripped piece left in the bags would just be worn again.
     if (record.random)
     {
         bool stripped = false;

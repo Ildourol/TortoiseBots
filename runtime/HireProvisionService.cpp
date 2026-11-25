@@ -2,8 +2,10 @@
 #include "../ai/playerbot/GroupMembers.h"
 #include "HireProvisionService.h"
 #include "HireCost.h"
+#include "ReplacedGear.h"
 #include "BotNameService.h"
 #include "HireLifecycle.h"
+#include "BotGearService.h"
 #include "CommandedGroupQuery.h"
 #include "RemoteCommanderPolicy.h"
 #include "runtime/policy/hire/HireIntroPolicy.h"
@@ -1386,14 +1388,18 @@ void HireProvisionService::ProvisionHeavy(Player* bot, PendingProvision const& p
     // action would no-op here (random-pool + master gating), so the factory
     // path is the correct one for a just-bound companion.
     {
+        // A just-created character has no player history behind it: the outfit
+        // it arrived in and the standard kit the factory generates are both
+        // throwaway, so the tier kit below does not file them in its bags.
+        TortoiseBots::ThrowawayGearScope throwawayGear(bot, true);
         PlayerbotFactory factory(bot, bot->GetLevel());
         factory.ProvisionSpellsAndGear();
+        // Issue #490: static best-in-slot set for level-60 hires at tier >= 1.
+        // Runs after the factory so every slot starts from today's gear and the
+        // table only replaces the slots it defines. Slots without a row, hires
+        // below 60 and tier 0 keep today's behaviour untouched.
+        ProvisionHireGear(bot, pending, ai);
     }
-    // Issue #490: static best-in-slot set for level-60 hires at tier >= 1.
-    // Runs after the factory so every slot starts from today's gear and the
-    // table only replaces the slots it defines. Slots without a row, hires
-    // below 60 and tier 0 keep today's behaviour untouched.
-    ProvisionHireGear(bot, pending, ai);
     // Snapshot the provisioned spellbook. Kept on the pending entry for
     // post-deploy diagnosis (what the intro could see); the intro itself
     // reads the live spellbook through the rank chains below. Non-const on
@@ -1888,15 +1894,59 @@ void HireProvisionService::ProvisionHireGear(Player* bot, PendingProvision const
     if (!HireGearTierEligible(bot->GetLevel(), sPlayerbotAIConfig.hireGearTiersEnabled, tier))
         return;
     uint8_t forcedRole = pending.role ? pending.role : DefaultRoleForClass(bot->GetClass());
-    char const* specKey = ResolveHireGearSpecKey(bot->GetClass(), pending.specIndex, forcedRole);
+    // Key the set off the build the provisions actually applied (talents plus
+    // the role), not the requested menu row: a fallback spec gets its own kit.
+    char const* specKey = ResolveHireGearKeyForTab(bot->GetClass(),
+        AiFactory::GetKitSpecTab(bot, ai), (forcedRole & ai::BOT_ROLE_TANK) != 0);
     if (!specKey)
         return;
     if (EquipHireGearSet(bot, ai, bot->GetClass(), specKey, bot->GetRace(), tier))
     {
         // Saved by ProvisionHeavy right after this (issue #1043: one save per
         // hire, so the pet is not written by two racing transactions).
-        HireLifecycle::Instance().SetGearTier(bot->GetObjectGuid(), tier);
+        // Remembered as a gear mode: a talent change refits the same tier.
+        BotGearService::Instance().RememberGearMode(bot->GetGUIDLow(), BotGearPin{tier, 0});
     }
+}
+
+// The bot's own copy of `itemId` in the bags, or nullptr. Only bag copies:
+// an equipped one is the slot's old item, handled by the caller.
+static Item* FindBagCopy(Player* bot, uint32_t itemId)
+{
+    if (!bot || !itemId)
+        return nullptr;
+    for (uint8 slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
+        if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            if (item->GetEntry() == itemId)
+                return item;
+    for (uint8 bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+    {
+        Bag* container = static_cast<Bag*>(bot->GetItemByPos(INVENTORY_SLOT_BAG_0, bagSlot));
+        if (!container)
+            continue;
+        for (uint32 slot = 0; slot < container->GetBagSize(); ++slot)
+            if (Item* item = container->GetItemByPos(static_cast<uint8>(slot)))
+                if (item->GetEntry() == itemId)
+                    return item;
+    }
+    return nullptr;
+}
+
+// The copy of `itemId` worn in an equipment slot other than `slot` (a ring or
+// trinket pair), or nullptr. `wornSlot` receives its slot.
+static Item* FindWornCopyInOtherSlot(Player* bot, uint32_t itemId, uint8 slot, uint8& wornSlot)
+{
+    wornSlot = kHireGearNoSlot;
+    if (!bot || !itemId)
+        return nullptr;
+    uint32_t wornIds[kHireGearEquipSlotCount] = {};
+    for (uint8 other = 0; other < kHireGearEquipSlotCount; ++other)
+        if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, other))
+            wornIds[other] = item->GetEntry();
+    wornSlot = HireGearWornCopySlot(wornIds, slot, itemId);
+    if (wornSlot >= kHireGearEquipSlotCount)
+        return nullptr;
+    return bot->GetItemByPos(INVENTORY_SLOT_BAG_0, wornSlot);
 }
 
 bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_t classId, char const* specKey, uint8_t race, uint8_t tier,
@@ -1906,6 +1956,19 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
         return false;
     if (!HireGearCache::Instance().HasSetFor(classId, specKey, tier))
         return false;
+    // One slot-rule set for every gear path (ai/playerbot/policy/gear/). The
+    // kit generator is spec-correct, so this is a drift guard: a row the kit's
+    // spec would never wear in that slot (a shield in the main hand, a second
+    // one-hander for a shield tank) is skipped, never equipped over pool gear.
+    // The kit key decides the spec, not the live talents: a forced tank role
+    // can wear the tank kit on a DPS build, and that shield must still land.
+    uint32_t botSpecId = 0;
+    if (char const* scaleName = HireGearScaleName(specKey))
+        botSpecId = sRandomItemMgr.GetSpecIdFor(classId, scaleName);
+    if (!botSpecId)
+        botSpecId = sRandomItemMgr.GetPlayerSpecId(bot);
+    if (!botSpecId)
+        botSpecId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
     for (uint8 slot = 0; slot < EQUIPMENT_SLOT_END; ++slot)
     {
         HireGearRow const* row = nullptr;
@@ -1925,11 +1988,18 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
         if (row->itemId == 0)
         {
             if (oldItem)
-                bot->DestroyItem(oldItem->GetBagSlot(), oldItem->GetSlot(), true);
+                TortoiseBots::ReleaseReplacedItem(bot, oldItem);
             continue;
         }
         // A blocked row is skipped entirely: never equipped, never enchanted.
         if (GearBlacklistBlocks(sPlayerbotAIConfig.randomGearBlacklist, row->itemId))
+            continue;
+        ItemPrototype const* proto = sObjectMgr.GetItemPrototype(row->itemId);
+        if (proto && botSpecId &&
+            (slot == EQUIPMENT_SLOT_MAINHAND || slot == EQUIPMENT_SLOT_OFFHAND ||
+                slot == EQUIPMENT_SLOT_RANGED) &&
+            !sRandomItemMgr.ShouldEquipWeaponForSlot(bot->GetClass(), uint8_t(botSpecId),
+                proto, slot, bot->CanDualWield()))
             continue;
         if (!oldItem || oldItem->GetEntry() != row->itemId)
         {
@@ -1938,16 +2008,62 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
             if (sRandomItemMgr.IsTransmogClone(row->itemId))
                 continue;
             // A 2H main hand cannot be equipped while the offhand is held.
-            ItemPrototype const* proto = sObjectMgr.GetItemPrototype(row->itemId);
             if (slot == EQUIPMENT_SLOT_MAINHAND && proto && proto->InventoryType == INVTYPE_2HWEAPON)
                 if (Item* offhand = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND))
-                    bot->DestroyItem(offhand->GetBagSlot(), offhand->GetSlot(), true);
+                    TortoiseBots::ReleaseReplacedItem(bot, offhand);
             uint16 eDest = 0;
-            if (RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, row->itemId) != EQUIP_ERR_OK)
+            Item* owned = FindBagCopy(bot, row->itemId);
+            // Moving a bag copy into a slot needs a living owner (core
+            // SwapItem refuses a dead player); a dead bot gets a fresh copy
+            // like every other gear path.
+            if (owned && !bot->IsAlive())
+                owned = nullptr;
+            uint8 wornSlot = kHireGearNoSlot;
+            Item* wornElsewhere = owned ? nullptr : FindWornCopyInOtherSlot(bot, row->itemId, slot, wornSlot);
+            if (wornElsewhere && !bot->IsAlive())
+                wornElsewhere = nullptr;
+            if (owned)
+            {
+                // Re-equip the copy the bot already owns instead of making a
+                // second one: the duplicate would otherwise stay in the bags,
+                // and for a max_count 1 row (a ring) the unseen-item check
+                // refuses the new copy while the copy sits there, so the row
+                // would be skipped and the slot keep the old spec's piece.
+                if (bot->CanEquipItem(slot, eDest, owned, true) != EQUIP_ERR_OK || (eDest & 0xFF) != slot)
+                    continue;
+            }
+            else if (wornElsewhere)
+            {
+                // The row's copy is worn in its paired slot (ring/trinket):
+                // a second copy is refused while that one is counted, so move
+                // it here and let the paired slot's own row replace the piece
+                // that lands there. Without this the slot kept the old spec's
+                // ring and the kit's ring went to the bags on every refit.
+                if (bot->CanEquipItem(slot, eDest, wornElsewhere, true) != EQUIP_ERR_OK || (eDest & 0xFF) != slot)
+                    continue;
+            }
+            else if (RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, row->itemId) != EQUIP_ERR_OK)
                 continue;
-            if (oldItem)
-                bot->DestroyItem(oldItem->GetBagSlot(), oldItem->GetSlot(), true);
-            if (!bot->EquipNewItem(eDest, row->itemId, true))
+            bool equipped = false;
+            if (wornElsewhere)
+            {
+                bot->SwapItem(uint16((INVENTORY_SLOT_BAG_0 << 8) | wornSlot), uint16((INVENTORY_SLOT_BAG_0 << 8) | slot));
+                Item* nowWorn = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+                equipped = nowWorn && nowWorn->GetEntry() == row->itemId;
+            }
+            else
+            {
+                if (oldItem)
+                    TortoiseBots::ReleaseReplacedItem(bot, oldItem);
+                if (owned)
+                {
+                    bot->SwapItem(owned->GetPos(), uint16((INVENTORY_SLOT_BAG_0 << 8) | slot));
+                    equipped = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot) != nullptr;
+                }
+                else
+                    equipped = bot->EquipNewItem(eDest, row->itemId, true) != nullptr;
+            }
+            if (!equipped)
                 continue;
         }
         if (enchants && row->enchantSpell)

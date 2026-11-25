@@ -79,6 +79,44 @@ inline char const* ResolveHireGearKeyForPath(uint8_t classId, char const* pathNa
     return ResolveHireGearSpecKey(classId, specIndex, role);
 }
 
+// Spec key for the tab AiFactory::GetKitSpecTab resolves (talents plus the
+// forced role): every gear pass keys the same build the bot plays. nullptr
+// for an unknown class.
+inline char const* ResolveHireGearKeyForTab(uint8_t classId, int tab, bool tank)
+{
+    int const specIndex = HireSpecIndexForTab(classId, tab, tank);
+    return specIndex < 0 ? nullptr : HireGearSpecKey(classId, specIndex);
+}
+
+// Gear-set spec key -> weightscale name (`ai_playerbot_weightscales`). The
+// offline generator writes its rows from the same mapping, so a kit row can
+// be checked against the spec it was generated for even when the bot's live
+// talents were forced to another build (`.bot role`). Keys never collide
+// across classes: "protection" is the warrior/paladin prot scale, "holy" the
+// paladin/priest one, "restoration" shaman/druid.
+inline char const* HireGearScaleName(char const* specKey)
+{
+    if (!specKey)
+        return nullptr;
+    struct Row { char const* key; char const* scale; };
+    static Row const rows[] = {
+        { "protection", "prot" }, { "arms", "arms" }, { "fury", "fury" },
+        { "holy", "holy" }, { "retribution", "retrib" },
+        { "beastmastery", "beast" }, { "marksmanship", "marks" }, { "survival", "surv" },
+        { "assassination", "assas" }, { "combat", "combat" }, { "subtlety", "subtle" },
+        { "discipline", "disc" }, { "shadow", "shadow" },
+        { "restoration", "resto" }, { "elemental", "elem" }, { "enhancement", "enhance" },
+        { "tank", "shamantank" },
+        { "frost", "frost" }, { "fire", "fire" }, { "arcane", "arcane" },
+        { "affliction", "afflic" }, { "demonology", "demo" }, { "destruction", "destro" },
+        { "bear", "feraltank" }, { "balance", "balance" }, { "cat", "feraldps" },
+    };
+    for (Row const& row : rows)
+        if (std::strcmp(row.key, specKey) == 0)
+            return row.scale;
+    return nullptr;
+}
+
 // Effective hire tier for PR 1: the master switch gates everything, StartTier
 // (0..7, clamped) is what every player has. 0 keeps today's behaviour.
 inline uint8_t EffectiveHireGearTier(bool enabled, uint32_t startTier)
@@ -97,6 +135,17 @@ inline bool HireGearTierEligible(uint8_t level, bool enabled, uint8_t tier)
     return enabled && level == kHireGearHireLevel && tier >= 1 && tier <= kHireGearTierMax;
 }
 
+// A tier already recorded for the bot (a `.bot gear` pin or the hire kit it
+// was provisioned with) stays usable when tiers are switched off: the master
+// switch gates new hires and new pins, not refitting a kit the bot wears.
+inline bool RecordedHireGearTierUsable(uint8_t level, uint8_t tier)
+{
+    return level == kHireGearHireLevel && tier >= 1 && tier <= kHireGearTierMax;
+}
+
+// 1.12 EQUIPMENT_SLOT_END; the kit pass loops the same range.
+constexpr uint8_t kHireGearEquipSlotCount = 19;
+
 // One table row, as loaded by the runtime cache.
 struct HireGearRow
 {
@@ -107,6 +156,9 @@ struct HireGearRow
     uint8_t slot = 0;
     uint32_t itemId = 0;
     uint32_t enchantSpell = 0;
+    // Item level read from item_template at load; 0 when the prototype is
+    // missing. Only the cap filter needs it.
+    uint32_t itemLevel = 0;
 };
 
 // Lookup over a row array: the race-specific row wins, else the race-0 row.
@@ -141,6 +193,53 @@ inline bool LookupHireGearRow(HireGearRow const* rows, size_t count,
         return true;
     }
     return false;
+}
+
+// Slots a pool pass may fill while a tier kit is about to run: the kit leaves
+// them alone (no row, an intentionally empty row, or a row above the cap).
+// A slot the kit covers must not be touched first - the kit would swap out the
+// piece the pool pass just made, leaving the piece the bot already wore in the
+// bags (a copy per call, mailed once the bags fill) and a row whose equip
+// check then refuses the duplicate.
+inline uint32_t HireGearPoolFillSlotMask(HireGearRow const* rows, size_t count,
+    uint8_t classId, char const* spec, uint8_t race, uint8_t tier, uint32_t ilvlCap)
+{
+    uint32_t mask = 0;
+    if (!spec)
+        return mask;
+    for (uint8_t slot = 0; slot < kHireGearEquipSlotCount; ++slot)
+    {
+        HireGearRow const* row = nullptr;
+        if (!LookupHireGearRow(rows, count, classId, spec, race, tier, slot, row) || !row)
+        {
+            mask |= 1u << slot;
+            continue;
+        }
+        if (row->itemId == 0)
+            continue;
+        if (ilvlCap && row->itemLevel > ilvlCap)
+            mask |= 1u << slot;
+    }
+    return mask;
+}
+
+// Sentinel: no equipment slot holds the item.
+constexpr uint8_t kHireGearNoSlot = kHireGearEquipSlotCount;
+
+// The equipment slot other than `slot` that already wears `itemId`, or
+// kHireGearNoSlot. A kit row whose item is unique by `max_count` cannot be
+// equipped as a second copy while the bot wears the first one in its paired
+// slot (ring/trinket): the equip check counts the worn copy and refuses. The
+// caller moves that copy into the row's slot instead of skipping the row.
+// `wornItemIds` is kHireGearEquipSlotCount entries, 0 for an empty slot.
+inline uint8_t HireGearWornCopySlot(uint32_t const* wornItemIds, uint8_t slot, uint32_t itemId)
+{
+    if (!wornItemIds || !itemId)
+        return kHireGearNoSlot;
+    for (uint8_t other = 0; other < kHireGearEquipSlotCount; ++other)
+        if (other != slot && wornItemIds[other] == itemId)
+            return other;
+    return kHireGearNoSlot;
 }
 
 } // namespace TortoiseBots

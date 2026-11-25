@@ -12,10 +12,14 @@ namespace ai
 
         bool Sell(Player* requester, FindItemVisitor* visitor);
         bool Sell(Player* requester, Item* item);
+        // Same sale against an already resolved vendor, so a batch pays for one
+        // reach scan instead of one per item.
+        bool Sell(Player* requester, Item* item, Creature* vendor);
 
         // True when the NPC actually has vendor stock (npc_vendor rows or template rows).
-        // Flagged-but-stockless NPCs (issue #404: entry 1650) would only print a core
-        // "empty trading item list" error on gossip, so both sell and buy skip them here.
+        // A flagged-but-stockless NPC (entry 1650) only prints a core "empty trading
+        // item list" error when an inventory is listed, so the errand, buy and gossip
+        // paths skip them here. A plain sale does not list stock.
         static bool HasVendorStock(Creature* vendor);
         // What a sell order that sold nothing says why: `.bot sell`, TBM "Sell junk".
         static std::string RefusalReason(PlayerbotAI* botAI);
@@ -40,7 +44,7 @@ namespace ai
                 "Example: sell equip \n";
         }
         virtual std::vector<std::string> GetUsedActions() { return {}; }
-        virtual std::vector<std::string> GetUsedValues() { return { "nearest npcs", "item usage" }; }
+        virtual std::vector<std::string> GetUsedValues() { return { "item usage" }; }
 #endif
     };
 }

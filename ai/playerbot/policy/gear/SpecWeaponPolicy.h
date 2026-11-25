@@ -49,7 +49,8 @@ constexpr uint32_t SPEC_POLICY_WS_CROSSBOW = 18;
 constexpr uint32_t SPEC_POLICY_AS_MISC = 0;
 constexpr uint32_t SPEC_POLICY_AS_SHIELD = 6;
 constexpr uint32_t SPEC_POLICY_AS_LIBRAM = 7;
-constexpr uint32_t SPEC_POLICY_AS_TOTEM = 8;
+constexpr uint32_t SPEC_POLICY_AS_IDOL = 8;
+constexpr uint32_t SPEC_POLICY_AS_TOTEM = 9;
 
 namespace ai
 {

@@ -948,7 +948,7 @@ bool HandleRole(ChatHandler* handler, char const* args)
     }
     sPlayerbotDbStore.Save(ai);
 
-    // Issue #189 Phase 3: role-only designation stays gear-neutral, but warn
+    // The role changes no gear on the spot (the new picks follow it), so warn
     // when the worn gear cannot back the role (squishy tank, no heals).
     if (role == static_cast<uint8>(ai::BOT_ROLE_TANK))
     {

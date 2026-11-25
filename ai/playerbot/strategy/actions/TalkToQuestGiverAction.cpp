@@ -254,11 +254,11 @@ int64 TalkToQuestGiverAction::RewardGain(uint32 itemId)
     if (!proto)
         return 0;
 
-    int64 gain = sRandomItemMgr.ItemStatWeight(bot, qualifier);
-    uint8 const slot = ItemUsageValue::GetPreferredEquipSlot(bot, nullptr, proto);
+    int64 gain = sRandomItemMgr.ItemStatWeight(bot, qualifier, ai);
+    uint8 const slot = ItemUsageValue::GetPreferredEquipSlot(bot, nullptr, proto, ai);
     if (slot != NULL_SLOT)
         if (Item* worn = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-            gain -= sRandomItemMgr.ItemStatWeight(bot, worn);
+            gain -= sRandomItemMgr.ItemStatWeight(bot, worn, ai);
     return gain;
 }
 
