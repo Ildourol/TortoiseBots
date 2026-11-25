@@ -79,6 +79,15 @@ inline char const* ResolveHireGearKeyForPath(uint8_t classId, char const* pathNa
     return ResolveHireGearSpecKey(classId, specIndex, role);
 }
 
+// Spec key for the tab AiFactory::GetKitSpecTab resolves (talents plus the
+// forced role): every gear pass keys the same build the bot plays. nullptr
+// for an unknown class.
+inline char const* ResolveHireGearKeyForTab(uint8_t classId, int tab, bool tank)
+{
+    int const specIndex = HireSpecIndexForTab(classId, tab, tank);
+    return specIndex < 0 ? nullptr : HireGearSpecKey(classId, specIndex);
+}
+
 // Effective hire tier for PR 1: the master switch gates everything, StartTier
 // (0..7, clamped) is what every player has. 0 keeps today's behaviour.
 inline uint8_t EffectiveHireGearTier(bool enabled, uint32_t startTier)

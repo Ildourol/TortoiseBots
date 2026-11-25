@@ -11,8 +11,7 @@
 #include "../ai/playerbot/PlayerbotAIConfig.h"
 #include "../ai/playerbot/PlayerbotFactory.h"
 #include "../ai/playerbot/RandomItemMgr.h"
-#include "../ai/playerbot/RandomBotFacade.h"
-#include "../ai/playerbot/strategy/actions/ChangeTalentsAction.h"
+#include "../ai/playerbot/AiFactory.h"
 #include "../host/ModuleLog.h"
 
 // pi-lens-ignore: clang:pp_file_not_found
@@ -259,13 +258,14 @@ void BotGearService::Update(uint32_t /*diff*/)
             m_job.result.bots.push_back(outcome);
             continue;
         }
-        // The bot's own talent spec picks the kit, as the respec path does. Menu option 0 is the tank
-        // spec for warrior, paladin and druid, so it must not stand in for a DPS or healer spec.
-        uint32_t const specNo = sRandomBotFacade.GetValue(bot->GetGUIDLow(), "specNo");
-        std::string const pathName = specNo > 0
-            ? ChangeTalentsAction::GetPremadePathName(bot->GetClass(), static_cast<int>(specNo - 1))
-            : std::string();
-        char const* specKey = ResolveHireGearKeyForPath(bot->GetClass(), pathName.c_str(), role);
+        // The one spec read (talents plus a forced role) picks the kit, the
+        // same way stat weights and the strategy kit do. Menu option 0 is
+        // the tank spec for warrior, paladin and druid, so it must not stand
+        // in for a DPS or healer spec; the feral and shaman tank builds share
+        // a tab with their DPS build and are told apart by the tank read.
+        int const tab = AiFactory::GetKitSpecTab(bot, ai);
+        bool const tank = PlayerbotAI::IsTank(bot);
+        char const* specKey = ResolveHireGearKeyForTab(bot->GetClass(), tab, tank);
         bool const hasKit = m_job.args.tier > 0 && specKey &&
             HireGearCache::Instance().HasSetFor(bot->GetClass(), specKey, m_job.args.tier);
         if (m_job.args.tier > 0 && !hasKit)

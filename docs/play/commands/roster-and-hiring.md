@@ -144,7 +144,7 @@ Overrides party role assignments used by the AI strategy engine to select specs 
 ```
 
 - `<Name>`: Sets the role for a specific companion bot and rebuilds its combat strategy kit. You may use your own character name instead of `self`. `.bot role self` sets the requesting player's own runtime role override and does not target a bot.
-- `tank`, `healer` (alias `heal`), `dps`: Sets the designated combat role. `tank` on a shaman bot installs the shaman tank kit.
+- `tank`, `healer` (alias `heal`), `dps`: Sets the designated combat role. `tank` on a shaman bot installs the shaman tank kit. The role also drives gear: item scoring, `.bot autogear` and `.bot gear` kits use the talent points plus this override, so a retribution paladin set to `holy` treats +Int gear as an upgrade without a respec.
 - Class-spec ids (`arms`, `fury`, `protection`, `holy`, `retribution`, `discipline`, `shadow`, `hybrid`, `restoration`, `balance`, `boomkin`, `cat`, `bear`, `bm`, `mm`, `survival`, `combat`, `assa`, `subtlety`, `ele`, `enh`, `frost`, `fire`, `arcane`, `affliction`, `demonology`, `destruction`): map to the role and apply that spec's strategies for the bot's own class, so `holy`, `protection` and `restoration` mean the right spec on each class. Rejected when the bot's class has no such spec. On a paladin, priest, shaman or druid a spec id also sets that spec's off-spec default: a healer spec turns `offdps` on and `offheal` off, a damage spec the other way round, a tank spec turns both off (both off with `AiPlayerbot.EnableOffSpecStrategies = 0`; `hybrid` keeps its own `offdps`).
 - A role or spec change rebuilds the whole kit, so the [`.bot behavior`](bot-panel.md#bot-behavior) switches go back to their defaults. [`.bot choice`](bot-panel.md#bot-choice) orders, the focus mark, the formation and CC marks are kept.
 - `clear` (aliases `none`, `reset`): Clears the override and restores automatic role inference based on talents and gear.
@@ -206,7 +206,7 @@ Evaluates a bot's level and automatically equips level-appropriate equipment up 
 .bot autogear <CharacterName> [quality|ilvl]
 ```
 
-Set [`AiPlayerbot.OwnedBotAutogearEnabled`](../../server/settings/party.md#aiplayerbotownedbotautogearenabled) to `1` first (off by default). Defaults to uncommon (green) gear unless specified (e.g. `blue` or `200`). Ranged weapons are selected to match existing ammunition in the bot's bags. Note: autogear hands out no ammo; hunter ammunition must be stocked separately.
+Set [`AiPlayerbot.OwnedBotAutogearEnabled`](../../server/settings/party.md#aiplayerbotownedbotautogearenabled) to `1` first (off by default). Defaults to uncommon (green) gear unless specified (e.g. `blue` or `200`). Ranged weapons are selected to match existing ammunition in the bot's bags. Gear is picked for the bot's played spec: its talent points plus any [`.bot role`](#bot-role) override, so a retribution paladin set to `holy` gets healing gear. Note: autogear hands out no ammo; hunter ammunition must be stocked separately.
 
 For real players, use [`.autogear`](#autogear) instead — `.bot autogear` only works on owned or hired bots.
 
@@ -220,7 +220,7 @@ Gears one bot, or every bot of a commander's bound group, to a hire gear tier un
 .bot gear <Name|raid <Commander>> preset <name>
 ```
 
-The named bot must be online and a bot; `raid <Commander>` gears every bot of the commander's bound group (the lead bot's group when bound, else the commander's own group). Each bot must be level 60, alive and in the world; the kit is the hire tier for the bot's class and its talent spec (the role decides when the spec cannot be read), and skipped slots are reported as capped when the cap holds them back.
+The named bot must be online and a bot; `raid <Commander>` gears every bot of the commander's bound group (the lead bot's group when bound, else the commander's own group). Each bot must be level 60, alive and in the world; the kit is the hire tier for the bot's played spec - its talent points plus any [`.bot role`](#bot-role) override, so a retribution paladin set to `holy` receives the holy set - and skipped slots are reported as capped when the cap holds them back.
 Bag items the bot had before the call are never destroyed: above-cap pieces already in the bags stay, and only a created-then-unused piece is removed. A worn piece the kit replaces is destroyed, the same way hire provisioning swaps a hire's gear (bots only; real players are refused); anything still worn above the cap is moved to the bags. The pin holds afterwards, across logout and login: the bot will not auto-equip an above-cap piece again until another `.bot gear` sets a new cap (or no cap), the hire is dismissed, or the character is deleted. Real players are never targets.
 
 Named presets live in [`AiPlayerbot.BotGearPresets`](../../server/settings/hiring.md#aiplayerbotbotgearpresets) (`lkh`, `zg`, `aq20`, `timbermaw`, `onyxia`, `mc`, `bwl`, `es`, `aq40`, `naxx`, `kara40`, `prebis`, `t1`, `t2`).

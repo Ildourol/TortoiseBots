@@ -233,8 +233,8 @@ class RandomItemMgr
         uint8 GetBotEnchantMinLevel(uint32 spellId, uint8 slotId);
         uint32 CalculateRandomPropertyWeight(uint8 playerclass, uint8 spec, int32 randomPropertyId);
         uint32 CalculateStatWeight(uint8 playerclass, uint8 spec, ItemPrototype const* proto, ItemSpecType &itSpec);
-        uint32 ItemStatWeight(Player* player, ItemQualifier& qualifier);
-        uint32 ItemStatWeight(Player* player, Item* item);
+        uint32 ItemStatWeight(Player* player, ItemQualifier& qualifier, PlayerbotAI* facade = nullptr);
+        uint32 ItemStatWeight(Player* player, Item* item, PlayerbotAI* facade = nullptr);
 
         uint32 CalculateSingleStatWeight(uint8 playerclass, uint8 spec, std::string stat, int32 value);
         bool CanEquipArmor(uint8 clazz, uint8 spec, uint32 level, ItemPrototype const* proto);
@@ -287,8 +287,8 @@ class RandomItemMgr
         // whitelisted, items with no known source, retired or test data,
         // item level 0 outside shirt/tabard, and legendary or better.
         bool IsForbiddenBotGear(uint32 itemId);
-        std::string GetPlayerSpecName(Player* player);
-        uint32 GetPlayerSpecId(Player* player);
+        std::string GetPlayerSpecName(Player* player, PlayerbotAI* facade = nullptr);
+        uint32 GetPlayerSpecId(Player* player, PlayerbotAI* facade = nullptr);
         // Issue #189 Phase 2: unknown-spec fallback. Spent talents decide
         // when present; otherwise a class-generic spec so gear never skips
         // entirely (fail-open scoring, still filtered by weapon rules).

@@ -41,6 +41,7 @@ Bots cover all nine Vanilla classes. Each bot reads its spent talent points, pic
 The bot counts spent talent points in each of its three class trees. The tree with the most points picks the combat strategy. Hybrid classes also read stance, form, and gear to confirm the role.
 
 Players can use [`.bot role <Name|self>`](../play/commands/roster-and-hiring.md#bot-role) to override the result.
+The same read picks gear: item scoring, `.bot autogear` and `.bot gear` kits use the talent points plus the role, so a role change is enough for the new role's gear to count as an upgrade (the talents can stay in the old tree).
 Without an override, role detection uses:
 - Party composition, stance or form, and tanking gear.
 - A shaman needs a shield, *Rockbiter Weapon*, and *Totemic Alignment* or *Spirit Armor*.

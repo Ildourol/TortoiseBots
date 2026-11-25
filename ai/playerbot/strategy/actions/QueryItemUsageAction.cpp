@@ -290,7 +290,7 @@ std::string QueryItemUsageAction::QueryQuestItem(uint32 itemId, const Quest *que
 
 std::string QueryItemUsageAction::QueryItemPower(ItemQualifier& qualifier)
 {
-    uint32 power = sRandomItemMgr.ItemStatWeight(bot, qualifier);
+    uint32 power = sRandomItemMgr.ItemStatWeight(bot, qualifier, ai);
 
     ItemPrototype const* proto = sObjectMgr.GetItemPrototype(qualifier.GetId());
 

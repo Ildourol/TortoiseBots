@@ -619,14 +619,14 @@ bool EquipUpgradesAction::Execute(Event& event)
     // weapons.
     PlayerbotAI* sortAi = ai;
     AiObjectContext* sortContext = sortAi->GetAiObjectContext();
-    items.sort([sortContext, plr = bot](Item* i, Item* j) {
+    items.sort([sortContext, sortAi, plr = bot](Item* i, Item* j) {
         ItemUsage iUsage = sortContext->GetValue<ItemUsage>("item usage", ItemQualifier(i).GetQualifier())->Get();
         ItemUsage jUsage = sortContext->GetValue<ItemUsage>("item usage", ItemQualifier(j).GetQualifier())->Get();
         if (iUsage != jUsage)
             return iUsage < jUsage;
 
-        uint32 iWeight = sRandomItemMgr.ItemStatWeight(plr, i);
-        uint32 jWeight = sRandomItemMgr.ItemStatWeight(plr, j);
+        uint32 iWeight = sRandomItemMgr.ItemStatWeight(plr, i, sortAi);
+        uint32 jWeight = sRandomItemMgr.ItemStatWeight(plr, j, sortAi);
         if (iWeight != jWeight)
             return iWeight > jWeight;
 
@@ -705,7 +705,7 @@ bool EquipUpgradesAction::Execute(Event& event)
         // equipping one item moves the slot the next candidate would land in
         // (a 2H weapon frees the off hand, the first of two rings takes the
         // other finger slot).
-        uint8 slot = ItemUsageValue::GetPreferredEquipSlot(bot, item, item->GetProto());
+        uint8 slot = ItemUsageValue::GetPreferredEquipSlot(bot, item, item->GetProto(), ai);
         if (slot == NULL_SLOT || filledSlots.count(slot))
         {
             continue; // no eligible slot, or one item per target slot per run
@@ -827,13 +827,13 @@ bool EquipUpgradesAction::Execute(Event& event)
                     continue;
                 }
 
-                uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot);
+                uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot, ai);
                 uint16 ohDest;
                 if (ai::DualWieldCascade(true,
                     sRandomItemMgr.ShouldEquipWeaponForSlot(bot, bot->GetClass(), specId, displacedProto, EQUIPMENT_SLOT_OFFHAND, true),
                     curOH == nullptr,
-                    sRandomItemMgr.ItemStatWeight(bot, displacedMH),
-                    curOH ? sRandomItemMgr.ItemStatWeight(bot, curOH) : 0) &&
+                    sRandomItemMgr.ItemStatWeight(bot, displacedMH, ai),
+                    curOH ? sRandomItemMgr.ItemStatWeight(bot, curOH, ai) : 0) &&
                     bot->CanEquipItem(EQUIPMENT_SLOT_OFFHAND, ohDest, displacedMH, true) == EQUIP_ERR_OK && (ohDest & 0xFF) == EQUIPMENT_SLOT_OFFHAND)
                 {
                     EquipItemToSlot(GetMaster(), displacedMH, EQUIPMENT_SLOT_OFFHAND);
@@ -876,7 +876,7 @@ bool EquipUpgradesAction::Execute(Event& event)
             && AI_VALUE2_EXISTS(ForceItemUsage, "force item usage", mh->GetProto()->ItemId, ForceItemUsage::FORCE_USAGE_NONE) != ForceItemUsage::FORCE_USAGE_EQUIP
             && AI_VALUE2_EXISTS(ForceItemUsage, "force item usage", oh->GetProto()->ItemId, ForceItemUsage::FORCE_USAGE_NONE) != ForceItemUsage::FORCE_USAGE_EQUIP)
         {
-            uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot);
+            uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot, ai);
 
             if (sRandomItemMgr.ShouldEquipWeaponForSlot(bot, bot->GetClass(), specId, mh->GetProto(), EQUIPMENT_SLOT_MAINHAND, bot->CanDualWield())
                 && sRandomItemMgr.ShouldEquipWeaponForSlot(bot, bot->GetClass(), specId, oh->GetProto(), EQUIPMENT_SLOT_OFFHAND, bot->CanDualWield()))
@@ -911,6 +911,26 @@ bool EquipUpgradesAction::Execute(Event& event)
 
     if (forceUsageChanged && !sPlayerbotAIConfig.bExplicitDbStoreSave)
         sPlayerbotDbStore.Save(ai);
+
+    if (!didEquip && !equippedBags)
+    {
+        // A bare "failed" left the player guessing: a role or spec change makes
+        // bag gear score as a downgrade and nothing else happens. An explicit
+        // order gets the reason; the periodic audit stays silent.
+        Player* requester = event.GetOwner();
+        if (requester && requester != bot)
+        {
+            if (items.empty())
+            {
+                std::string const spec = sRandomItemMgr.GetPlayerSpecName(bot, ai);
+                ai->TellError(requester, "Nothing equipped: no item in the bags scores as an upgrade for " +
+                    (spec.empty() ? std::string("this class") : spec) + ".");
+            }
+            else
+                ai->TellError(requester, "Nothing equipped: " + std::to_string(items.size()) +
+                    " bag candidate(s) could not be equipped here (the slot is taken, the bags are full, or a gear cap or source rule holds them back).");
+        }
+    }
 
     return didEquip || equippedBags;
 }
