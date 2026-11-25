@@ -10,6 +10,7 @@
 #include "../../../../runtime/HireTierRequestPolicy.h"
 #include "../../../../runtime/HireProvisionService.h"
 #include "../../../../runtime/HireGearCache.h"
+#include "../../../../runtime/ReplacedGear.h"
 #include "../../../../runtime/AltBotService.h"
 #include "../../../../runtime/AltBotPolicy.h"
 #include "../../../../runtime/policy/class/ShamanTankKitPolicy.h"
@@ -314,13 +315,25 @@ void ChangeTalentsAction::RespecHireGearKit(Player* bot, std::ostringstream& out
     // A slot the new spec's tier kit has nothing under the cap for takes a
     // spec-appropriate under-cap piece instead of the old spec's gear (or an
     // empty hand), exactly as the `.bot gear` pass backfills before its kit.
-    // No set for the new spec keeps the kit, so it does not backfill.
-    if (hasKit && mode.ilvlCap)
+    // Only the kit's uncovered slots: a covered one is the kit's own, and a
+    // pool piece there would be swapped out again by the kit, keeping the
+    // piece the bot already wore in the bags. No set for the new spec keeps
+    // the kit, so it does not backfill.
+    uint32_t const poolSlots = hasKit
+        ? TortoiseBots::HireGearCache::Instance().PoolFillSlotMask(cls, specKey, bot->GetRace(), tier, mode.ilvlCap)
+        : 0;
+    bool equippedKit = false;
+    if (hasKit)
     {
-        PlayerbotFactory backfill(bot, bot->GetLevel());
-        backfill.AutogearOwned(ITEM_QUALITY_EPIC, mode.ilvlCap);
+        TortoiseBots::ThrowawayGearScope throwawayGear(bot);
+        if (mode.ilvlCap && poolSlots)
+        {
+            PlayerbotFactory backfill(bot, bot->GetLevel());
+            backfill.AutogearOwned(ITEM_QUALITY_EPIC, mode.ilvlCap, poolSlots);
+        }
+        equippedKit = TortoiseBots::HireProvisionService::EquipHireGearSet(bot, ai, cls, specKey, bot->GetRace(), tier, mode.ilvlCap);
     }
-    if (hasKit && TortoiseBots::HireProvisionService::EquipHireGearSet(bot, ai, cls, specKey, bot->GetRace(), tier, mode.ilvlCap))
+    if (equippedKit)
     {
         // The kit may have skipped above-cap rows; the pass still ends with
         // nothing worn above the cap, like `.bot gear`.

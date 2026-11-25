@@ -68,7 +68,9 @@ public:
     // The ranged pick fits the ammo already in the bags (bow/crossbow with
     // arrows, gun with bullets), see OwnedBotAcceptRangedPick; no ammo is
     // handed out here.
-    void AutogearOwned(uint32 cappedQuality, uint32 ilvlCap);
+    // onlySlots limits the pass to those equipment slots (0 = every slot).
+    // A tier kit's covered slots are left out: the kit equips those itself.
+    void AutogearOwned(uint32 cappedQuality, uint32 ilvlCap, uint32 onlySlots = 0);
     // Real-player `.autogear`: the same incremental candidate pool and score
     // as AutogearOwned, with a forced spec (the caller resolves the name to a
     // weightscale id) and no bot AI anywhere. Upgrades only; the replaced

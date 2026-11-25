@@ -135,7 +135,7 @@ static void TestRecordedTier()
 }
 
 static HireGearRow MakeRow(uint8_t cls, char const* spec, uint8_t race, uint8_t tier, uint8_t slot,
-    uint32_t item, uint32_t enchant)
+    uint32_t item, uint32_t enchant, uint32_t itemLevel = 0)
 {
     HireGearRow row;
     row.classId = cls;
@@ -145,6 +145,7 @@ static HireGearRow MakeRow(uint8_t cls, char const* spec, uint8_t race, uint8_t 
     row.slot = slot;
     row.itemId = item;
     row.enchantSpell = enchant;
+    row.itemLevel = itemLevel;
     return row;
 }
 
@@ -239,6 +240,57 @@ static void TestTabKey()
     CHECK(TabKey(6, 0, false) == "<none>");
 }
 
+// The pool pass before a tier kit may touch only the slots the kit leaves
+// alone: no row, an intentionally empty row, or a row above the cap. A
+// covered slot is left for the kit - otherwise the kit swaps out the pool
+// piece, the piece the bot already wore stays in the bags, and the kit makes
+// a fresh copy (bag growth; a duplicate the equip check then refuses for a
+// max_count 1 row).
+static void TestPoolFillMask()
+{
+    std::vector<HireGearRow> rows;
+    rows.push_back(MakeRow(1, "protection", 0, 2, 0, 2001, 0, 60)); // head, under the cap
+    rows.push_back(MakeRow(1, "protection", 0, 2, 4, 2002, 0, 66)); // chest, above 62
+    rows.push_back(MakeRow(1, "protection", 0, 2, 5, 0, 0));        // deliberately cleared
+    rows.push_back(MakeRow(1, "protection", 1, 2, 6, 2003, 0, 55)); // race-specific legs
+    rows.push_back(MakeRow(1, "protection", 0, 2, 10, 2004, 0, 58)); // ring 1
+    rows.push_back(MakeRow(1, "protection", 0, 2, 11, 2005, 0, 59)); // ring 2
+    rows.push_back(MakeRow(1, "arms", 0, 2, 15, 2006, 0, 63));      // other spec
+
+    uint32_t const underCap = HireGearPoolFillSlotMask(rows.data(), rows.size(), 1, "protection", 1, 2, 62);
+    CHECK((underCap & (1u << 0)) == 0);   // kit covers the head
+    CHECK((underCap & (1u << 4)) != 0);   // kit skips the above-cap chest
+    CHECK((underCap & (1u << 5)) == 0);   // kit clears the slot itself
+    CHECK((underCap & (1u << 6)) == 0);   // race row covers the legs
+    CHECK((underCap & (1u << 10)) == 0);
+    CHECK((underCap & (1u << 11)) == 0);
+    CHECK((underCap & (1u << 1)) != 0);   // no row: nothing to cover it
+    CHECK((underCap & (1u << 15)) != 0);  // another spec's row covers nothing here
+
+    // No cap: only the slots without a row (or with an empty one) may be filled.
+    uint32_t const noCap = HireGearPoolFillSlotMask(rows.data(), rows.size(), 1, "protection", 1, 2, 0);
+    CHECK(noCap != 0);
+    CHECK((noCap & (1u << 0)) == 0);
+    CHECK((noCap & (1u << 4)) == 0);
+    CHECK((noCap & (1u << 5)) == 0);
+    CHECK((noCap & (1u << 1)) != 0);
+
+    // A kit that covers every slot leaves the pool pass nothing to do.
+    std::vector<HireGearRow> full;
+    for (uint8_t slot = 0; slot < kHireGearEquipSlotCount; ++slot)
+        full.push_back(MakeRow(1, "protection", 0, 2, slot, 3000u + slot, 0, 60));
+    CHECK(HireGearPoolFillSlotMask(full.data(), full.size(), 1, "protection", 1, 2, 66) == 0);
+
+    // Only the equipment slots are considered (no bit above the last one).
+    CHECK((underCap >> kHireGearEquipSlotCount) == 0);
+
+    // Unknown spec / unknown tier: nothing is covered.
+    CHECK(HireGearPoolFillSlotMask(rows.data(), rows.size(), 1, nullptr, 1, 2, 62) == 0);
+    uint32_t const otherTier = HireGearPoolFillSlotMask(rows.data(), rows.size(), 1, "protection", 1, 3, 62);
+    CHECK(otherTier != 0);
+    CHECK((otherTier & (1u << 0)) != 0);
+}
+
 int main()
 {
     TestSpecKeys();
@@ -250,6 +302,7 @@ int main()
     TestEligibility();
     TestRecordedTier();
     TestLookup();
+    TestPoolFillMask();
     std::printf("hire gear policy OK (%d checks)\n", checks);
     return 0;
 }

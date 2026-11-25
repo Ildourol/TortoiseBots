@@ -328,16 +328,24 @@ void BotGearService::Update(uint32_t /*diff*/)
         }
         std::set<uint32_t> before;
         CollectOwnedItemGuids(bot, before);
-        // Two passes: what AutogearOwned equips and the tier kit then replaces
-        // is gear this call made, not gear the bot wore when it started, so it
-        // is destroyed rather than filed in the bags (or mailed).
+        // Two passes: a pool backfill first, then the tier kit. The backfill
+        // fills only the slots the kit leaves alone (no row, or a row above the
+        // cap). A slot the kit covers belongs to the kit: touching it first
+        // leaves the piece the bot already wore in the bags and has the kit
+        // create a fresh copy, which grew the bags and mailed a duplicate on
+        // every call. What the backfill equips and a later step replaces is gear
+        // this call made, so it is destroyed rather than filed in the bags.
+        uint32_t const poolSlots = hasKit
+            ? HireGearCache::Instance().PoolFillSlotMask(bot->GetClass(), specKey, bot->GetRace(),
+                m_job.args.tier, m_job.args.ilvlCap)
+            : 0;
         std::vector<uint8_t> capped;
         {
             TortoiseBots::ThrowawayGearScope throwawayGear(bot);
-            if (m_job.args.ilvlCap)
+            if (m_job.args.ilvlCap && (!hasKit || poolSlots != 0))
             {
                 PlayerbotFactory factory(bot, bot->GetLevel());
-                factory.AutogearOwned(ITEM_QUALITY_EPIC, m_job.args.ilvlCap);
+                factory.AutogearOwned(ITEM_QUALITY_EPIC, m_job.args.ilvlCap, hasKit ? poolSlots : 0);
             }
             if (m_job.args.tier > 0 && ai)
             {

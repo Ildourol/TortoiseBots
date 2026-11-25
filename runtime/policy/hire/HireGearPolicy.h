@@ -143,6 +143,9 @@ inline bool RecordedHireGearTierUsable(uint8_t level, uint8_t tier)
     return level == kHireGearHireLevel && tier >= 1 && tier <= kHireGearTierMax;
 }
 
+// 1.12 EQUIPMENT_SLOT_END; the kit pass loops the same range.
+constexpr uint8_t kHireGearEquipSlotCount = 19;
+
 // One table row, as loaded by the runtime cache.
 struct HireGearRow
 {
@@ -153,6 +156,9 @@ struct HireGearRow
     uint8_t slot = 0;
     uint32_t itemId = 0;
     uint32_t enchantSpell = 0;
+    // Item level read from item_template at load; 0 when the prototype is
+    // missing. Only the cap filter needs it.
+    uint32_t itemLevel = 0;
 };
 
 // Lookup over a row array: the race-specific row wins, else the race-0 row.
@@ -187,6 +193,34 @@ inline bool LookupHireGearRow(HireGearRow const* rows, size_t count,
         return true;
     }
     return false;
+}
+
+// Slots a pool pass may fill while a tier kit is about to run: the kit leaves
+// them alone (no row, an intentionally empty row, or a row above the cap).
+// A slot the kit covers must not be touched first - the kit would swap out the
+// piece the pool pass just made, leaving the piece the bot already wore in the
+// bags (a copy per call, mailed once the bags fill) and a row whose equip
+// check then refuses the duplicate.
+inline uint32_t HireGearPoolFillSlotMask(HireGearRow const* rows, size_t count,
+    uint8_t classId, char const* spec, uint8_t race, uint8_t tier, uint32_t ilvlCap)
+{
+    uint32_t mask = 0;
+    if (!spec)
+        return mask;
+    for (uint8_t slot = 0; slot < kHireGearEquipSlotCount; ++slot)
+    {
+        HireGearRow const* row = nullptr;
+        if (!LookupHireGearRow(rows, count, classId, spec, race, tier, slot, row) || !row)
+        {
+            mask |= 1u << slot;
+            continue;
+        }
+        if (row->itemId == 0)
+            continue;
+        if (ilvlCap && row->itemLevel > ilvlCap)
+            mask |= 1u << slot;
+    }
+    return mask;
 }
 
 } // namespace TortoiseBots

@@ -1909,6 +1909,29 @@ void HireProvisionService::ProvisionHireGear(Player* bot, PendingProvision const
     }
 }
 
+// The bot's own copy of `itemId` in the bags, or nullptr. Only bag copies:
+// an equipped one is the slot's old item, handled by the caller.
+static Item* FindBagCopy(Player* bot, uint32_t itemId)
+{
+    if (!bot || !itemId)
+        return nullptr;
+    for (uint8 slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
+        if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            if (item->GetEntry() == itemId)
+                return item;
+    for (uint8 bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+    {
+        Bag* container = static_cast<Bag*>(bot->GetItemByPos(INVENTORY_SLOT_BAG_0, bagSlot));
+        if (!container)
+            continue;
+        for (uint32 slot = 0; slot < container->GetBagSize(); ++slot)
+            if (Item* item = container->GetItemByPos(static_cast<uint8>(slot)))
+                if (item->GetEntry() == itemId)
+                    return item;
+    }
+    return nullptr;
+}
+
 bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_t classId, char const* specKey, uint8_t race, uint8_t tier,
     uint32_t ilvlCap, bool enchants, std::vector<uint8_t>* cappedSlots)
 {
@@ -1972,11 +1995,30 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
                 if (Item* offhand = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND))
                     TortoiseBots::ReleaseReplacedItem(bot, offhand);
             uint16 eDest = 0;
-            if (RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, row->itemId) != EQUIP_ERR_OK)
+            Item* owned = FindBagCopy(bot, row->itemId);
+            if (owned)
+            {
+                // Re-equip the copy the bot already owns instead of making a
+                // second one: the duplicate would otherwise stay in the bags,
+                // and for a max_count 1 row (a ring) the unseen-item check
+                // refuses the new copy while the copy sits there, so the row
+                // would be skipped and the slot keep the old spec's piece.
+                if (bot->CanEquipItem(slot, eDest, owned, true) != EQUIP_ERR_OK || (eDest & 0xFF) != slot)
+                    continue;
+            }
+            else if (RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, row->itemId) != EQUIP_ERR_OK)
                 continue;
             if (oldItem)
                 TortoiseBots::ReleaseReplacedItem(bot, oldItem);
-            if (!bot->EquipNewItem(eDest, row->itemId, true))
+            bool equipped = false;
+            if (owned)
+            {
+                bot->SwapItem(owned->GetPos(), uint16((INVENTORY_SLOT_BAG_0 << 8) | slot));
+                equipped = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot) != nullptr;
+            }
+            else
+                equipped = bot->EquipNewItem(eDest, row->itemId, true) != nullptr;
+            if (!equipped)
                 continue;
         }
         if (enchants && row->enchantSpell)

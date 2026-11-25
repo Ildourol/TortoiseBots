@@ -180,14 +180,17 @@ void PlayerbotFactory::PruneDuplicateEquipRows()
 // is threaded into InitEquipment as an argument (0 = the global
 // randomGearMaxLevel), never through global config mutation. No wipe, no
 // master sync.
-void PlayerbotFactory::AutogearOwned(uint32 cappedQuality, uint32 ilvlCap)
+void PlayerbotFactory::AutogearOwned(uint32 cappedQuality, uint32 ilvlCap, uint32 onlySlots)
 {
     if (!bot)
         return;
     if (cappedQuality > ITEM_QUALITY_LEGENDARY)
         cappedQuality = ITEM_QUALITY_LEGENDARY;
     itemQuality = cappedQuality;
+    // Same member TopUpPoolGear uses; InitEquipment reads 0 as "every slot".
+    slotMask = onlySlots;
     InitEquipment(true, false, sPlayerbotAIConfig.randomGearProgression, false, ilvlCap);
+    slotMask = 0;
     bot->SaveToDB();
 }
 
