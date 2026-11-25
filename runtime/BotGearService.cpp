@@ -286,6 +286,7 @@ void BotGearService::Update(uint32_t /*diff*/)
         // Two passes: what AutogearOwned equips and the tier kit then replaces
         // is gear this call made, not gear the bot wore when it started, so it
         // is destroyed rather than filed in the bags (or mailed).
+        std::vector<uint8_t> capped;
         {
             TortoiseBots::ThrowawayGearScope throwawayGear(bot);
             if (m_job.args.ilvlCap)
@@ -293,7 +294,6 @@ void BotGearService::Update(uint32_t /*diff*/)
                 PlayerbotFactory factory(bot, bot->GetLevel());
                 factory.AutogearOwned(ITEM_QUALITY_EPIC, m_job.args.ilvlCap);
             }
-            std::vector<uint8_t> capped;
             if (m_job.args.tier > 0 && ai)
             {
                 HireProvisionService::EquipHireGearSet(bot, ai, bot->GetClass(), specKey, bot->GetRace(),
