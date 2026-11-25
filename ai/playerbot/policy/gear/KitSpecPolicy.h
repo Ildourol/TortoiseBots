@@ -60,14 +60,21 @@ namespace ai
                 return 1; // shadow points, healing role: holy
         }
 
-        // A damage role leaves several trees to choose from, so the talents
-        // keep the choice - except out of the one protection tree, which is
-        // not a damage kit: `.bot role <bot> dps` on a protection warrior or
-        // paladin kept "protection" strategies and taunted off the tank.
+        // A damage role keeps the talent choice where several trees deal
+        // damage; paladins and priests have one, so the role names it.
+        if (role & KIT_SPEC_ROLE_DPS)
+        {
+            if (classId == KIT_SPEC_CLASS_PALADIN && talentTab != 2)
+                return 2; // retribution
+            if (classId == KIT_SPEC_CLASS_PRIEST)
+                return 2; // shadow
+        }
+
+        // `.bot role <bot> dps` on a protection warrior kept "protection",
+        // "tank assist" and "pull" from his talent tab, and he taunted the
+        // group tank's target off him.
         if (classId == KIT_SPEC_CLASS_WARRIOR && talentTab == 2)
             return 0; // arms
-        if (classId == KIT_SPEC_CLASS_PALADIN && talentTab == 1)
-            return 2; // retribution
         return talentTab;
     }
 }

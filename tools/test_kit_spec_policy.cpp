@@ -72,16 +72,24 @@ static void TestHealer()
     CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_ROGUE, 1, KIT_SPEC_ROLE_HEALER) == 1);
 }
 
-// A damage role keeps the talent choice among damage trees, but never leaves
-// the protection tree in place.
+// A damage role keeps the talent choice where several trees deal damage, and
+// names the class's single damage tree otherwise.
 static void TestDps()
 {
     CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_WARRIOR, 2, KIT_SPEC_ROLE_DPS) == 0); // prot -> arms
     CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_WARRIOR, 1, KIT_SPEC_ROLE_DPS) == 1); // fury stays
     CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PALADIN, 1, KIT_SPEC_ROLE_DPS) == 2); // prot -> ret
-    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PALADIN, 0, KIT_SPEC_ROLE_DPS) == 0); // holy stays (a smite build)
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PALADIN, 0, KIT_SPEC_ROLE_DPS) == 2); // holy -> ret
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PALADIN, 2, KIT_SPEC_ROLE_DPS) == 2); // ret stays
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PRIEST, 0, KIT_SPEC_ROLE_DPS) == 2);  // disc -> shadow
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PRIEST, 1, KIT_SPEC_ROLE_DPS) == 2);  // holy -> shadow
     CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PRIEST, 2, KIT_SPEC_ROLE_DPS) == 2);  // shadow stays
-    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_SHAMAN, 0, KIT_SPEC_ROLE_DPS) == 0);  // elemental stays
+    // Several damage trees: the spent one stands.
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_SHAMAN, 0, KIT_SPEC_ROLE_DPS) == 0);  // elemental
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_SHAMAN, 1, KIT_SPEC_ROLE_DPS) == 1);  // enhancement
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_DRUID, 0, KIT_SPEC_ROLE_DPS) == 0);   // balance
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_DRUID, 1, KIT_SPEC_ROLE_DPS) == 1);   // feral
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_ROGUE, 2, KIT_SPEC_ROLE_DPS) == 2);   // subtlety
 }
 
 int main()
