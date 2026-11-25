@@ -56,8 +56,10 @@ namespace ai
                 return 2; // restoration
             if (classId == KIT_SPEC_CLASS_SHAMAN)
                 return 2; // restoration
-            if (classId == KIT_SPEC_CLASS_PRIEST && talentTab == 2)
-                return 1; // shadow points, healing role: holy
+            // Priest heals from two trees: keep the spent one (never fall
+            // through to the damage role's shadow), move shadow to holy.
+            if (classId == KIT_SPEC_CLASS_PRIEST)
+                return talentTab == 2 ? 1 : talentTab;
         }
 
         // A damage role keeps the talent choice where several trees deal

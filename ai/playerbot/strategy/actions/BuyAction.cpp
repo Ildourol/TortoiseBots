@@ -86,7 +86,7 @@ bool BuyAction::Execute(Event& event)
             // shieldless shield-spec bot (owner matrix: a prot bot must ALWAYS
             // have a shield), then the weight order. One weight lookup per
             // item per visit (O(stock)); the loop below reuses no cache.
-            uint32 buySpecId = sRandomItemMgr.GetPlayerSpecId(bot);
+            uint32 buySpecId = sRandomItemMgr.GetPlayerSpecId(bot, ai);
             if (!buySpecId)
                 buySpecId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
             bool const buyShieldNeed = ai::SpecUsesShieldOffHand(bot->GetClass(), sRandomItemMgr.GetSpecName(buySpecId)) &&
@@ -94,7 +94,7 @@ bool BuyAction::Execute(Event& event)
             std::unordered_map<uint32, uint32> vendorScores;
             vendorScores.reserve(m_items_sorted.size());
             for (VendorItem* scored : m_items_sorted)
-                vendorScores[scored->item] = sRandomItemMgr.GetLiveStatWeight(bot, scored->item);
+                vendorScores[scored->item] = sRandomItemMgr.GetLiveStatWeight(bot, scored->item, buySpecId);
             std::sort(m_items_sorted.begin(), m_items_sorted.end(), [&vendorScores, buyShieldNeed](VendorItem* i, VendorItem* j)
             {
                 ItemPrototype const* pi = sObjectMgr.GetItemPrototype(i->item);

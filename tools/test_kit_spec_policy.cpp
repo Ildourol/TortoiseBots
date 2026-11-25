@@ -2,9 +2,9 @@
 // GetKitSpecTab (ai/playerbot/policy/gear/KitSpecPolicy.h). The spent talents
 // pick the tree; a forced role takes over where it names a single tree.
 //
-// TBM #98: `.bot role <bot> holy` on a retribution paladin left the talents
-// alone, so gear scoring kept the retribution weights and +Int greens were
-// never seen as upgrades.
+// A `.bot role <bot> holy` on a retribution paladin left the talents alone, so
+// gear scoring kept the retribution weights and +Int greens were never seen as
+// upgrades.
 //
 // Build and run (from the repo root):
 //   g++ -std=c++17 -Wall -Wextra tools/test_kit_spec_policy.cpp -o /tmp/test_kit_spec
@@ -56,7 +56,7 @@ static void TestTank()
 }
 
 // A forced healer is geared and fought as the class's healing tree, even when
-// the talent points still sit in a damage tree (TBM #98).
+// the talent points still sit in a damage tree.
 static void TestHealer()
 {
     CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PALADIN, 2, KIT_SPEC_ROLE_HEALER) == 0); // ret -> holy
@@ -92,12 +92,24 @@ static void TestDps()
     CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_ROGUE, 2, KIT_SPEC_ROLE_DPS) == 2);   // subtlety
 }
 
+// A combined role bitmask never falls through a role that already answered:
+// a priest carrying healer and damage bits stays on his healing tree.
+static void TestCombinedRoles()
+{
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PRIEST, 0, KIT_SPEC_ROLE_HEALER | KIT_SPEC_ROLE_DPS) == 0); // discipline
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PRIEST, 1, KIT_SPEC_ROLE_HEALER | KIT_SPEC_ROLE_DPS) == 1); // holy
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_PRIEST, 2, KIT_SPEC_ROLE_HEALER | KIT_SPEC_ROLE_DPS) == 1); // shadow -> holy
+    // A class with no healing tree still takes the damage role.
+    CHECK(ResolveKitSpecTab(KIT_SPEC_CLASS_WARRIOR, 2, KIT_SPEC_ROLE_HEALER | KIT_SPEC_ROLE_DPS) == 0); // prot -> arms
+}
+
 int main()
 {
     TestNoRole();
     TestTank();
     TestHealer();
     TestDps();
+    TestCombinedRoles();
     std::printf("kit spec policy OK (%d checks)\n", checks);
     return 0;
 }

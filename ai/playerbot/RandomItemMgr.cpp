@@ -2147,21 +2147,24 @@ uint32 RandomItemMgr::CalculateRandomPropertyWeight(uint8 playerclass, uint8 spe
     return weight;
 }
 
-uint32 RandomItemMgr::ItemStatWeight(Player* player, ItemQualifier& qualifier)
+uint32 RandomItemMgr::ItemStatWeight(Player* player, ItemQualifier& qualifier, PlayerbotAI* facade)
 {
     ItemSpecType itSpec;
-    uint32 weight = CalculateStatWeight(player->GetClass(), GetPlayerSpecId(player), qualifier.GetProto(), itSpec);
+    // One spec read for the base item and its enchant/random property: the
+    // sort paths score thousands of items per pass.
+    uint32 const specId = GetPlayerSpecId(player, facade);
+    uint32 weight = CalculateStatWeight(player->GetClass(), specId, qualifier.GetProto(), itSpec);
     if(qualifier.GetEnchantId())
-        weight += CalculateEnchantWeight(player->GetClass(), GetPlayerSpecId(player), qualifier.GetEnchantId());
+        weight += CalculateEnchantWeight(player->GetClass(), specId, qualifier.GetEnchantId());
     if (qualifier.GetRandomPropertyId())
-        weight += CalculateRandomPropertyWeight(player->GetClass(), GetPlayerSpecId(player), qualifier.GetRandomPropertyId());
+        weight += CalculateRandomPropertyWeight(player->GetClass(), specId, qualifier.GetRandomPropertyId());
     return weight;
 }
 
-uint32 RandomItemMgr::ItemStatWeight(Player* player, Item* item)
+uint32 RandomItemMgr::ItemStatWeight(Player* player, Item* item, PlayerbotAI* facade)
 {
     ItemQualifier itemQualifier(item);
-    return ItemStatWeight(player, itemQualifier);
+    return ItemStatWeight(player, itemQualifier, facade);
 }
 
 uint32 RandomItemMgr::CalculateSingleStatWeight(uint8 playerclass, uint8 spec, std::string stat, int32 value)
@@ -3039,12 +3042,14 @@ void RandomItemMgr::ClassifySourceTier(ItemPrototype const* proto, ItemInfoEntry
 
 
 
-std::string RandomItemMgr::GetPlayerSpecName(Player* player)
+std::string RandomItemMgr::GetPlayerSpecName(Player* player, PlayerbotAI* facade)
 {
     std::string specName;
     // One spec source for gear and strategies: a forced role (`.bot role`,
-    // the addon spec buttons) decides the tree where it names one.
-    int tab = AiFactory::GetKitSpecTab(player);
+    // the addon spec buttons) decides the tree where it names one. The
+    // item-scoring paths hand their own AI in, so no registry lock is taken;
+    // the rest fall back to the lookup.
+    int tab = AiFactory::GetKitSpecTab(player, facade);
     switch (player->GetClass())
     {
     case CLASS_PRIEST:
@@ -3140,9 +3145,9 @@ std::string RandomItemMgr::GetPlayerSpecName(Player* player)
     return specName;
 }
 
-uint32 RandomItemMgr::GetPlayerSpecId(Player* player)
+uint32 RandomItemMgr::GetPlayerSpecId(Player* player, PlayerbotAI* facade)
 {
-    std::string specName = GetPlayerSpecName(player);
+    std::string specName = GetPlayerSpecName(player, facade);
     if (specName.empty())
         return 0;
 

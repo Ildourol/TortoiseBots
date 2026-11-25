@@ -188,7 +188,7 @@ void UpdateGearAction::EnchantItem(Item* item)
     if (!item)
         return;
 
-    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot);
+    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot, ai);
     if (!specId)
         specId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
     if (!specId)

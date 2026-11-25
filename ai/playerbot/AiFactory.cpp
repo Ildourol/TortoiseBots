@@ -199,7 +199,10 @@ static_assert(KIT_SPEC_ROLE_DPS == BOT_ROLE_DPS, "KitSpecPolicy role bits must m
 int AiFactory::GetKitSpecTab(const Player* player, PlayerbotAI* const facade)
 {
     int const tab = GetPlayerSpecTab(player);
-    uint8 const role = facade ? facade->GetForcedRole() : static_cast<uint8>(BOT_ROLE_NONE);
+    // A facade for another player (a caller reading a group member) must not
+    // lend that player's role: fall back to the talents, like no facade.
+    uint8 const role = facade && facade->GetBot() == player
+        ? facade->GetForcedRole() : static_cast<uint8>(BOT_ROLE_NONE);
     return ResolveKitSpecTab(player->GetClass(), tab, role);
 }
 

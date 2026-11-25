@@ -1171,7 +1171,7 @@ void PlayerbotFactory::AddItemSpellStats(uint32 smod, uint8& sp, uint8& ap, uint
 
 bool PlayerbotFactory::CanEquipWeapon(ItemPrototype const* proto)
 {
-   int tab = AiFactory::GetKitSpecTab(bot);
+   int tab = AiFactory::GetKitSpecTab(bot, ai);
 
    switch (bot->GetClass())
    {
@@ -1508,7 +1508,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
     // class-generic scale (issue #189 Phase 2) so gear never skips entirely.
     // A forced spec (real-player autogear) wins over spent talents and needs
     // no fallback: the command validated it against the weightscale table.
-    uint32 specId = forcedSpecId ? forcedSpecId : sRandomItemMgr.GetPlayerSpecId(bot);
+    uint32 specId = forcedSpecId ? forcedSpecId : sRandomItemMgr.GetPlayerSpecId(bot, ai);
     if (specId == 0 && !forcedSpecId)
         specId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
     if (specId == 0)
@@ -2592,7 +2592,7 @@ void PlayerbotFactory::ApplyBestEnchant(Item* item)
     if (!ai)
         return;
 
-    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot);
+    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot, ai);
     if (!specId)
         specId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
     if (!specId)

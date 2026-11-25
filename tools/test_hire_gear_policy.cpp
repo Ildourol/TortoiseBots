@@ -182,7 +182,17 @@ static void TestTabKey()
     CHECK(TabKey(kHireClassShaman, 1, true) == "tank");
     CHECK(TabKey(kHireClassShaman, 2, false) == "restoration");
     CHECK(TabKey(kHireClassMage, 0, false) == "arcane");
+    CHECK(TabKey(kHireClassMage, 1, false) == "fire");
     CHECK(TabKey(kHireClassMage, 2, false) == "frost");
+    CHECK(TabKey(kHireClassHunter, 0, false) == "beastmastery");
+    CHECK(TabKey(kHireClassHunter, 1, false) == "marksmanship");
+    CHECK(TabKey(kHireClassHunter, 2, false) == "survival");
+    CHECK(TabKey(kHireClassRogue, 0, false) == "assassination");
+    CHECK(TabKey(kHireClassRogue, 1, false) == "combat");
+    CHECK(TabKey(kHireClassRogue, 2, false) == "subtlety");
+    CHECK(TabKey(kHireClassWarlock, 0, false) == "affliction");
+    CHECK(TabKey(kHireClassWarlock, 1, false) == "demonology");
+    CHECK(TabKey(kHireClassWarlock, 2, false) == "destruction");
     CHECK(TabKey(kHireClassDruid, 0, false) == "balance");
     CHECK(TabKey(kHireClassDruid, 1, true) == "bear");
     CHECK(TabKey(kHireClassDruid, 1, false) == "cat");
