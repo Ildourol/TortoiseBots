@@ -117,7 +117,7 @@ class GivenItemProvenanceWiringTest(unittest.TestCase):
         moved = give.index("bot->MoveItemFromInventory(item->GetBagSlot(), item->GetSlot(), true);")
         guard = give.index("TortoiseBots::RunGivenItems::Has(item->GetGUIDLow())")
         self.assertLess(guard, moved, "GiveItemAction")
-        sell_one = body(sell + "\n", "bool SellAction::Sell(Player* requester, Item* item)")
+        sell_one = body(sell + "\n", "bool SellAction::Sell(Player* requester, Item* item, Creature* vendor)")
         self.assertIn("TortoiseBots::RunGivenItems::Has(item->GetGUIDLow())", sell_one)
 
 
