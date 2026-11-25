@@ -33,10 +33,18 @@ Install copies `aiplayerbot.conf.dist` next to `mangosd.conf` and creates `aipla
 
 ## Documentation
 
-| Area | Topics |
+| Guide / Reference | Description |
 |---|---|
-| [Knowledge index](knowledge/index.md) | [Vision & Architecture](knowledge/architecture/overview.md), [Features & Gameplay](knowledge/play/features.md), [Build & Configuration](knowledge/operations/build-and-config.md) |
-| [Full guides (`docs/`)](docs/README.md) | [Getting Started](docs/play/getting-started.md), [Player Commands](docs/play/commands/README.md), [Class AI](docs/classes/overview.md), [Dungeons & Raids](docs/play/dungeons-and-raids.md), [Living World](docs/world/living-world.md), [Configuration](docs/server/configuration.md), [Dashboard](docs/server/dashboard.md), [Architecture](docs/developers/architecture.md) |
+| **[Getting Started](docs/play/getting-started.md)** | Client setup, `/tbm` addon, summoning alts, and first party setup |
+| [What Bots Can Do](docs/play/features.md) | Feature catalog, defaults, and configuration toggle flags |
+| [Documentation Start Page](docs/README.md) | Central switchboard, quick task finder, and audience directory |
+| [Player Commands](docs/play/commands/README.md) | `.bot` command reference, whisper syntax, and tactical intents |
+| [Class AI & Rotations](docs/classes/overview.md) | Rotations, specs, and Turtle WoW 1.18.1 custom abilities |
+| [Dungeon & Raid Tactics](docs/play/dungeons-and-raids.md) | Line-of-sight pullback pulls, CC discipline, and wipe recovery |
+| [Living World & Economy](docs/world/living-world.md) | Autonomous roaming, questing, vendor trips, and gear |
+| [Configuration & Tuning](docs/server/configuration.md) | Settings reference, presets, and configuration files |
+| [Observability Dashboard](docs/server/dashboard.md) | Real-time web dashboard, 2D live map, and Prometheus metrics |
+| [Architecture Invariants](docs/developers/architecture.md) | Decoupled C++ rules, headless sessions, and host boundary seams |
 
 ## Credit & Support
 
