@@ -10,6 +10,7 @@
     } \
 } while (0)
 
+using TortoiseBots::DiscardsReplacedGear;
 using TortoiseBots::KeepsReplacedGear;
 
 int main()
@@ -32,6 +33,19 @@ int main()
     CHECK(KeepsReplacedGear(true, true, false, false, true, false));   // claimed
     CHECK(KeepsReplacedGear(true, true, false, false, false, true));   // grouped with a player
     std::cout << "  [PASS] owned, hired, claimed and grouped bots keep it\n";
+
+    // Gear a running operation generated itself is throwaway: the two passes
+    // of `.bot gear` and the tier kit of hire provisioning must not file their
+    // own intermediates in the bags. Outside a scope the keep rule alone runs.
+    CHECK(!DiscardsReplacedGear(false, false, false));
+    CHECK(!DiscardsReplacedGear(false, true, true));
+    // Initial provisioning: a fresh character's outfit is throwaway too.
+    CHECK(DiscardsReplacedGear(true, true, true));
+    CHECK(DiscardsReplacedGear(true, true, false));
+    // .bot gear: what the bot wore when the call started is kept.
+    CHECK(!DiscardsReplacedGear(true, false, true));
+    CHECK(DiscardsReplacedGear(true, false, false));
+    std::cout << "  [PASS] only gear of the running operation is destroyed\n";
 
     std::cout << "All replaced gear policy checks PASSED!\n";
     return 0;

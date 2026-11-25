@@ -19,7 +19,6 @@
 #include "AhBotSellerAccount.h"
 #include "StartZoneBalance.h"
 #include "GearSeedingGuard.h"
-#include "ReplacedGear.h"
 #include "policy/provision/GearBlacklistPolicy.h"
 #include "policy/pvp/WorldPvpSeekPolicy.h"
 #include "../ai/playerbot/PlayerbotAI.h"
@@ -1521,6 +1520,8 @@ void BotManager::OnPlayerLogin(::Player* player)
     // Pool and hired bots seeded before an item joined the gear blacklist still
     // wear it; their slot is not re-geared until a level-up, so strip it here
     // and let the normal gear pass fill the slot with a fitting piece.
+    // Destroyed for good: the equip audit does not check the blacklist, so a
+    // stripped piece left in the bags would just be worn again.
     if (record.random)
     {
         bool stripped = false;
@@ -1530,7 +1531,7 @@ void BotManager::OnPlayerLogin(::Player* player)
             if (worn && worn->GetProto() &&
                 TortoiseBots::GearBlacklistBlocks(sPlayerbotAIConfig.randomGearBlacklist, worn->GetProto()->ItemId))
             {
-                ReleaseReplacedItem(player, worn);
+                player->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
                 stripped = true;
             }
         }

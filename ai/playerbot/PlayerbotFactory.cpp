@@ -2179,7 +2179,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                         }
                         uint16 eDest;
                         Item* displacedOff = nullptr;
-                        if (playerUpgrade && !displacedStored && slot == EQUIPMENT_SLOT_MAINHAND && proto->InventoryType == INVTYPE_2HWEAPON)
+                        if (!displacedStored && slot == EQUIPMENT_SLOT_MAINHAND && proto->InventoryType == INVTYPE_2HWEAPON)
                             displacedOff = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND);
                         InventoryResult canEquip = RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, newItemId);
                         // The equip check needs a free bag slot for the displaced
@@ -2195,7 +2195,8 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                                 displacedOldId = displacedOff->GetProto()->ItemId;
                                 displacedMailed = TortoiseBots::ReleaseReplacedItem(bot, displacedOff) == TortoiseBots::ReplacedGearOutcome::Mailed;
                                 displacedStored = true;
-                                autogearUpgrades.push_back({EQUIPMENT_SLOT_OFFHAND, displacedOldId, 0, displacedMailed});
+                                if (playerUpgrade)
+                                    autogearUpgrades.push_back({EQUIPMENT_SLOT_OFFHAND, displacedOldId, 0, displacedMailed});
                                 canEquip = RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, newItemId);
                             }
                         }
@@ -2210,20 +2211,23 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                                 displacedOldId = displacedOff->GetProto()->ItemId;
                                 displacedMailed = TortoiseBots::ReleaseReplacedItem(bot, displacedOff) == TortoiseBots::ReplacedGearOutcome::Mailed;
                                 displacedStored = true;
-                                autogearUpgrades.push_back({EQUIPMENT_SLOT_OFFHAND, displacedOldId, 0, displacedMailed});
+                                if (playerUpgrade)
+                                    autogearUpgrades.push_back({EQUIPMENT_SLOT_OFFHAND, displacedOldId, 0, displacedMailed});
                             }
                         }
                         bool toBags = true;
+                        bool const hadOldItem = oldItem != nullptr;
                         if (oldItem)
                         {
                             if (playerUpgrade)
                             {
                                 toBags = TortoiseBots::ReleaseReplacedItem(bot, oldItem) != TortoiseBots::ReplacedGearOutcome::Mailed;
                                 oldStoredMailed = !toBags;
-                                oldItem = nullptr;
                             }
                             else
                                 TortoiseBots::ReleaseReplacedItem(bot, oldItem);
+                            // Released: a masterless pool bot's copy no longer exists.
+                            oldItem = nullptr;
                         }
                         Item* pItem = bot->EquipNewItem(eDest, newItemId, true);
                         if (pItem)
@@ -2246,7 +2250,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                         }
                         if (found && incremental)
                         {
-                            if (oldItem)
+                            if (hadOldItem)
                                 sLog.outDetail("Bot #%d %s:%d <%s>: Old Item: slot: %u, id: %u, value: %u (%s)", bot->GetGUIDLow(), bot->GetTeam() == ALLIANCE ? "A" : "H", bot->GetLevel(), bot->GetName(), slot, oldProto->ItemId, oldStatValue, oldProto->Name1);
                             sLog.outDetail("Bot #%d %s:%d <%s>: New Item: slot: %u, id: %u, value: %u (%s)", bot->GetGUIDLow(), bot->GetTeam() == ALLIANCE ? "A" : "H", bot->GetLevel(), bot->GetName(), slot, proto->ItemId, newStatValue, proto->Name1);
                         }
@@ -2291,11 +2295,13 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
         } while (!found && !seedSpread && attempts < 3 && quality != ITEM_QUALITY_POOR);
         // Nothing passed and a pool or hired bot still wears a forbidden piece:
         // the slot counts as empty, so the piece is removed before the
-        // backstop guard below can see the slot as occupied.
+        // backstop guard below can see the slot as occupied. Destroyed for
+        // good: the equip audit does not re-check the forbidden list, so a
+        // bagged piece would just be worn again.
         if (!found && !keepsWornGear)
             if (Item* worn = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
                 if (worn->GetProto() && sRandomItemMgr.IsForbiddenBotGear(worn->GetProto()->ItemId))
-                    TortoiseBots::ReleaseReplacedItem(bot, worn);
+                    bot->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
         if (!found && !bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot) &&
             slot != EQUIPMENT_SLOT_BODY && slot != EQUIPMENT_SLOT_TABARD)
         {
