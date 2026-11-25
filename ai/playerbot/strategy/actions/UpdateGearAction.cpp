@@ -8,6 +8,7 @@
 #include "../../../runtime/HireLifecycle.h"
 #include "../../../runtime/policy/hire/HireGearPolicy.h"
 #include "../../../runtime/policy/provision/GearBlacklistPolicy.h"
+#include "../../../runtime/ReplacedGear.h"
 
 using namespace ai;
 
@@ -59,8 +60,7 @@ bool UpdateGearAction::Execute(Event& event)
                     continue;
                 }
 
-                // Destroy the old item
-                bot->DestroyItem(oldItem->GetBagSlot(), oldItem->GetSlot(), true);
+                TortoiseBots::ReleaseReplacedItem(bot, oldItem);
             }
 
             if (pItemId > 0)

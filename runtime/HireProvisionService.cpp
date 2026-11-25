@@ -2,6 +2,7 @@
 #include "../ai/playerbot/GroupMembers.h"
 #include "HireProvisionService.h"
 #include "HireCost.h"
+#include "ReplacedGear.h"
 #include "BotNameService.h"
 #include "HireLifecycle.h"
 #include "BotGearService.h"
@@ -1387,14 +1388,18 @@ void HireProvisionService::ProvisionHeavy(Player* bot, PendingProvision const& p
     // action would no-op here (random-pool + master gating), so the factory
     // path is the correct one for a just-bound companion.
     {
+        // A just-created character has no player history behind it: the outfit
+        // it arrived in and the standard kit the factory generates are both
+        // throwaway, so the tier kit below does not file them in its bags.
+        TortoiseBots::ThrowawayGearScope throwawayGear(bot, true);
         PlayerbotFactory factory(bot, bot->GetLevel());
         factory.ProvisionSpellsAndGear();
+        // Issue #490: static best-in-slot set for level-60 hires at tier >= 1.
+        // Runs after the factory so every slot starts from today's gear and the
+        // table only replaces the slots it defines. Slots without a row, hires
+        // below 60 and tier 0 keep today's behaviour untouched.
+        ProvisionHireGear(bot, pending, ai);
     }
-    // Issue #490: static best-in-slot set for level-60 hires at tier >= 1.
-    // Runs after the factory so every slot starts from today's gear and the
-    // table only replaces the slots it defines. Slots without a row, hires
-    // below 60 and tier 0 keep today's behaviour untouched.
-    ProvisionHireGear(bot, pending, ai);
     // Snapshot the provisioned spellbook. Kept on the pending entry for
     // post-deploy diagnosis (what the intro could see); the intro itself
     // reads the live spellbook through the rank chains below. Non-const on
@@ -1943,7 +1948,7 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
         if (row->itemId == 0)
         {
             if (oldItem)
-                bot->DestroyItem(oldItem->GetBagSlot(), oldItem->GetSlot(), true);
+                TortoiseBots::ReleaseReplacedItem(bot, oldItem);
             continue;
         }
         // A blocked row is skipped entirely: never equipped, never enchanted.
@@ -1965,12 +1970,12 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
             // A 2H main hand cannot be equipped while the offhand is held.
             if (slot == EQUIPMENT_SLOT_MAINHAND && proto && proto->InventoryType == INVTYPE_2HWEAPON)
                 if (Item* offhand = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND))
-                    bot->DestroyItem(offhand->GetBagSlot(), offhand->GetSlot(), true);
+                    TortoiseBots::ReleaseReplacedItem(bot, offhand);
             uint16 eDest = 0;
             if (RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, row->itemId) != EQUIP_ERR_OK)
                 continue;
             if (oldItem)
-                bot->DestroyItem(oldItem->GetBagSlot(), oldItem->GetSlot(), true);
+                TortoiseBots::ReleaseReplacedItem(bot, oldItem);
             if (!bot->EquipNewItem(eDest, row->itemId, true))
                 continue;
         }

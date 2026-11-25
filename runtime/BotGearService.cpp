@@ -4,6 +4,7 @@
 #include "BotManager.h"
 #include "HireProvisionService.h"
 #include "PlayerbotAIStorage.h"
+#include "ReplacedGear.h"
 #include "policy/hire/HireGearPolicy.h"
 #include "../ai/playerbot/PlayerbotAI.h"
 #include "HireGearCache.h"
@@ -327,16 +328,22 @@ void BotGearService::Update(uint32_t /*diff*/)
         }
         std::set<uint32_t> before;
         CollectOwnedItemGuids(bot, before);
-        if (m_job.args.ilvlCap)
-        {
-            PlayerbotFactory factory(bot, bot->GetLevel());
-            factory.AutogearOwned(ITEM_QUALITY_EPIC, m_job.args.ilvlCap);
-        }
+        // Two passes: what AutogearOwned equips and the tier kit then replaces
+        // is gear this call made, not gear the bot wore when it started, so it
+        // is destroyed rather than filed in the bags (or mailed).
         std::vector<uint8_t> capped;
-        if (m_job.args.tier > 0 && ai)
         {
-            HireProvisionService::EquipHireGearSet(bot, ai, bot->GetClass(), specKey, bot->GetRace(),
-                m_job.args.tier, m_job.args.ilvlCap, m_job.args.enchants, &capped);
+            TortoiseBots::ThrowawayGearScope throwawayGear(bot);
+            if (m_job.args.ilvlCap)
+            {
+                PlayerbotFactory factory(bot, bot->GetLevel());
+                factory.AutogearOwned(ITEM_QUALITY_EPIC, m_job.args.ilvlCap);
+            }
+            if (m_job.args.tier > 0 && ai)
+            {
+                HireProvisionService::EquipHireGearSet(bot, ai, bot->GetClass(), specKey, bot->GetRace(),
+                    m_job.args.tier, m_job.args.ilvlCap, m_job.args.enchants, &capped);
+            }
         }
         std::set<uint32_t> created;
         CollectCreatedItemGuids(bot, before, created);
