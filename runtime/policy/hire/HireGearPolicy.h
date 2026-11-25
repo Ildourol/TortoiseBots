@@ -223,4 +223,23 @@ inline uint32_t HireGearPoolFillSlotMask(HireGearRow const* rows, size_t count,
     return mask;
 }
 
+// Sentinel: no equipment slot holds the item.
+constexpr uint8_t kHireGearNoSlot = kHireGearEquipSlotCount;
+
+// The equipment slot other than `slot` that already wears `itemId`, or
+// kHireGearNoSlot. A kit row whose item is unique by `max_count` cannot be
+// equipped as a second copy while the bot wears the first one in its paired
+// slot (ring/trinket): the equip check counts the worn copy and refuses. The
+// caller moves that copy into the row's slot instead of skipping the row.
+// `wornItemIds` is kHireGearEquipSlotCount entries, 0 for an empty slot.
+inline uint8_t HireGearWornCopySlot(uint32_t const* wornItemIds, uint8_t slot, uint32_t itemId)
+{
+    if (!wornItemIds || !itemId)
+        return kHireGearNoSlot;
+    for (uint8_t other = 0; other < kHireGearEquipSlotCount; ++other)
+        if (other != slot && wornItemIds[other] == itemId)
+            return other;
+    return kHireGearNoSlot;
+}
+
 } // namespace TortoiseBots

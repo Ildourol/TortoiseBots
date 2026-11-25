@@ -12,6 +12,7 @@
 
 #include "../runtime/policy/hire/HireGearPolicy.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -291,6 +292,51 @@ static void TestPoolFillMask()
     CHECK((otherTier & (1u << 0)) != 0);
 }
 
+// A kit row whose item is unique by max_count and already worn in its paired
+// slot (ring/trinket) must move that copy, not be skipped: the unseen-item
+// check counts the worn copy and refuses a second one, which left the old
+// spec's ring on the body and the kit's ring in the bags after a respec.
+static void TestWornCopySlot()
+{
+    uint32_t worn[kHireGearEquipSlotCount] = {};
+    worn[11] = 2246;  // Myrmidon's Signet in the second finger
+    worn[10] = 13098; // the arms kit's ring in the first finger
+    worn[12] = 17774; // trinket pair
+    worn[13] = 18370;
+
+    CHECK(HireGearWornCopySlot(worn, 10, 2246) == 11);
+    CHECK(HireGearWornCopySlot(worn, 11, 13098) == 10);
+    // The slot asked for is never its own answer.
+    CHECK(HireGearWornCopySlot(worn, 11, 2246) == kHireGearNoSlot);
+    // Not worn anywhere.
+    CHECK(HireGearWornCopySlot(worn, 10, 11669) == kHireGearNoSlot);
+    // The pair's other slot is found from either side.
+    CHECK(HireGearWornCopySlot(worn, 10, 17774) == 12);
+    CHECK(HireGearWornCopySlot(worn, 13, 17774) == 12);
+    CHECK(HireGearWornCopySlot(nullptr, 10, 2246) == kHireGearNoSlot);
+    CHECK(HireGearWornCopySlot(worn, 10, 0) == kHireGearNoSlot);
+
+    // The arms -> protection refit: the protection kit's finger rows are
+    // 2246 + 11669 and the bot wears 13098 + 2246. Row by row, the first
+    // finger moves the worn 2246 across, the second then replaces the 13098
+    // that landed there, so the pair ends as exactly 2246 + 11669.
+    uint32_t rows[kHireGearEquipSlotCount] = {};
+    rows[10] = 2246;
+    rows[11] = 11669;
+    for (uint8_t slot = 10; slot < 12; ++slot)
+    {
+        if (worn[slot] == rows[slot])
+            continue;
+        uint8_t source = HireGearWornCopySlot(worn, slot, rows[slot]);
+        if (source != kHireGearNoSlot)
+            std::swap(worn[slot], worn[source]);
+        else
+            worn[slot] = rows[slot]; // the row's own copy or a fresh one
+    }
+    CHECK(worn[10] == 2246);
+    CHECK(worn[11] == 11669);
+}
+
 int main()
 {
     TestSpecKeys();
@@ -303,6 +349,7 @@ int main()
     TestRecordedTier();
     TestLookup();
     TestPoolFillMask();
+    TestWornCopySlot();
     std::printf("hire gear policy OK (%d checks)\n", checks);
     return 0;
 }

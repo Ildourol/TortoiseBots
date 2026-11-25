@@ -56,6 +56,22 @@ class BotGearWiringTest(unittest.TestCase):
         self.assertIn("FindBagCopy(bot, row->itemId)", kit)
         self.assertIn("bot->SwapItem(owned->GetPos()", kit)
 
+    def test_kit_moves_a_copy_worn_in_the_paired_slot(self):
+        # A max_count 1 kit row whose copy is worn in the paired ring/trinket
+        # slot cannot be equipped a second time; the pass must move that copy
+        # into the row's slot instead of skipping the row.
+        kit = strip_comments(PROVISION_CPP)
+        self.assertIn("FindWornCopyInOtherSlot(bot, row->itemId, slot, wornSlot)", kit)
+        self.assertIn("bot->SwapItem(uint16((INVENTORY_SLOT_BAG_0 << 8) | wornSlot), uint16((INVENTORY_SLOT_BAG_0 << 8) | slot))", kit)
+
+    def test_incremental_pass_keeps_what_it_already_wears(self):
+        # Repeating `.bot gear` must change nothing: the shirt/tabard slots are
+        # never re-rolled once worn, and a worn piece under the cap stays unless
+        # the pool offers a strictly better one.
+        factory = strip_comments((ROOT / "ai/playerbot/PlayerbotFactory.cpp").read_text())
+        self.assertIn("ai::CosmeticSlotKeepsWorn(", factory)
+        self.assertIn("IncrementalKeepsWornPiece(oldStatValue, newStatValue,", factory)
+
     def test_service_gears_then_purges(self):
         auto = SERVICE.index("AutogearOwned(ITEM_QUALITY_EPIC")
         kit = SERVICE.index("EquipHireGearSet(")

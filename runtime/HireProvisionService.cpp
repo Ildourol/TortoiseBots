@@ -1932,6 +1932,23 @@ static Item* FindBagCopy(Player* bot, uint32_t itemId)
     return nullptr;
 }
 
+// The copy of `itemId` worn in an equipment slot other than `slot` (a ring or
+// trinket pair), or nullptr. `wornSlot` receives its slot.
+static Item* FindWornCopyInOtherSlot(Player* bot, uint32_t itemId, uint8 slot, uint8& wornSlot)
+{
+    wornSlot = kHireGearNoSlot;
+    if (!bot || !itemId)
+        return nullptr;
+    uint32_t wornIds[kHireGearEquipSlotCount] = {};
+    for (uint8 other = 0; other < kHireGearEquipSlotCount; ++other)
+        if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, other))
+            wornIds[other] = item->GetEntry();
+    wornSlot = HireGearWornCopySlot(wornIds, slot, itemId);
+    if (wornSlot >= kHireGearEquipSlotCount)
+        return nullptr;
+    return bot->GetItemByPos(INVENTORY_SLOT_BAG_0, wornSlot);
+}
+
 bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_t classId, char const* specKey, uint8_t race, uint8_t tier,
     uint32_t ilvlCap, bool enchants, std::vector<uint8_t>* cappedSlots)
 {
@@ -2001,6 +2018,10 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
             // like every other gear path.
             if (owned && !bot->IsAlive())
                 owned = nullptr;
+            uint8 wornSlot = kHireGearNoSlot;
+            Item* wornElsewhere = owned ? nullptr : FindWornCopyInOtherSlot(bot, row->itemId, slot, wornSlot);
+            if (wornElsewhere && !bot->IsAlive())
+                wornElsewhere = nullptr;
             if (owned)
             {
                 // Re-equip the copy the bot already owns instead of making a
@@ -2011,18 +2032,37 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
                 if (bot->CanEquipItem(slot, eDest, owned, true) != EQUIP_ERR_OK || (eDest & 0xFF) != slot)
                     continue;
             }
+            else if (wornElsewhere)
+            {
+                // The row's copy is worn in its paired slot (ring/trinket):
+                // a second copy is refused while that one is counted, so move
+                // it here and let the paired slot's own row replace the piece
+                // that lands there. Without this the slot kept the old spec's
+                // ring and the kit's ring went to the bags on every refit.
+                if (bot->CanEquipItem(slot, eDest, wornElsewhere, true) != EQUIP_ERR_OK || (eDest & 0xFF) != slot)
+                    continue;
+            }
             else if (RandomBotFacade::CanEquipUnseenItem(bot, slot, eDest, row->itemId) != EQUIP_ERR_OK)
                 continue;
-            if (oldItem)
-                TortoiseBots::ReleaseReplacedItem(bot, oldItem);
             bool equipped = false;
-            if (owned)
+            if (wornElsewhere)
             {
-                bot->SwapItem(owned->GetPos(), uint16((INVENTORY_SLOT_BAG_0 << 8) | slot));
-                equipped = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot) != nullptr;
+                bot->SwapItem(uint16((INVENTORY_SLOT_BAG_0 << 8) | wornSlot), uint16((INVENTORY_SLOT_BAG_0 << 8) | slot));
+                Item* nowWorn = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+                equipped = nowWorn && nowWorn->GetEntry() == row->itemId;
             }
             else
-                equipped = bot->EquipNewItem(eDest, row->itemId, true) != nullptr;
+            {
+                if (oldItem)
+                    TortoiseBots::ReleaseReplacedItem(bot, oldItem);
+                if (owned)
+                {
+                    bot->SwapItem(owned->GetPos(), uint16((INVENTORY_SLOT_BAG_0 << 8) | slot));
+                    equipped = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot) != nullptr;
+                }
+                else
+                    equipped = bot->EquipNewItem(eDest, row->itemId, true) != nullptr;
+            }
             if (!equipped)
                 continue;
         }

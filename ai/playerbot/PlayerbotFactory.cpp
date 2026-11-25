@@ -6,6 +6,7 @@
 #include "playerbot/SurvivePolicy.h"
 #include "playerbot/policy/gear/SpellRankPolicy.h"
 #include "playerbot/policy/gear/TalentSpellSavePolicy.h"
+#include "playerbot/policy/gear/WornGearKeepPolicy.h"
 #include "playerbot/AmmoStackPolicy.h"
 #include "../../runtime/BotNameService.h"
 #include "../../runtime/HunterPetPolicy.h"
@@ -1616,9 +1617,12 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
 
     for(uint8 slot = 0; slot < EQUIPMENT_SLOT_END; ++slot)
     {
-        // Player upgrades: shirts and tabards are cosmetic, a random swap is
-        // not an upgrade, so they keep whatever they wear.
-        if (playerUpgrade && (slot == EQUIPMENT_SLOT_BODY || slot == EQUIPMENT_SLOT_TABARD))
+        // Shirts and tabards are cosmetic: a random swap is not an upgrade,
+        // and re-rolling one a gear pass already filled only files the old
+        // copy in the bags (repeating `.bot gear` grew them by one shirt).
+        // An empty cosmetic slot is still filled.
+        if ((slot == EQUIPMENT_SLOT_BODY || slot == EQUIPMENT_SLOT_TABARD) &&
+            (playerUpgrade || ai::CosmeticSlotKeepsWorn(bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot) != nullptr)))
             continue;
         // Pool gear top-up: only the slots TopUpPoolGear picked.
         if (slotMask && !(slotMask & (1u << slot)))
@@ -2113,14 +2117,16 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                     bool const rangedDudFixed = !playerUpgrade && slot == EQUIPMENT_SLOT_RANGED &&
                         TortoiseBots::OwnedBotRangedReplacesDud(RangedAmmoKindOf(oldProto), RangedAmmoKindOf(proto),
                             bagsHaveArrows, bagsHaveBullets);
-                    if (incremental && oldItem && oldStatValue >= newStatValue && oldStatValue > 1 && !rangedDudFixed)
-                        continue;
-
                     // Autogear ranged pick: bow/crossbow only with arrows, gun
                     // only with bullets; with no ammo, keep the previous type.
                     if (!playerUpgrade && slot == EQUIPMENT_SLOT_RANGED &&
                         !TortoiseBots::OwnedBotAcceptRangedPick(RangedAmmoKindOf(oldProto), oldStatValue,
                             RangedAmmoKindOf(proto), newStatValue, bagsHaveArrows, bagsHaveBullets))
+                        continue;
+
+                    if (incremental && oldItem && !rangedDudFixed &&
+                        IncrementalKeepsWornPiece(oldStatValue, newStatValue,
+                            oldProto && oldProto->ItemLevel <= maxItemLevel))
                         continue;
 
                     // replace grey items right away
