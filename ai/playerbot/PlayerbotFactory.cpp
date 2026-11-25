@@ -2209,10 +2209,21 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                             if (!displacedStored)
                             {
                                 displacedOldId = displacedOff->GetProto()->ItemId;
-                                displacedMailed = TortoiseBots::ReleaseReplacedItem(bot, displacedOff) == TortoiseBots::ReplacedGearOutcome::Mailed;
-                                displacedStored = true;
                                 if (playerUpgrade)
+                                {
+                                    displacedMailed = TortoiseBots::ReleaseReplacedItem(bot, displacedOff) == TortoiseBots::ReplacedGearOutcome::Mailed;
                                     autogearUpgrades.push_back({EQUIPMENT_SLOT_OFFHAND, displacedOldId, 0, displacedMailed});
+                                }
+                                else
+                                {
+                                    // Bot paths: a usable off-hand piece goes
+                                    // to the bags like the seed's off-hand pass
+                                    // does, so a later one-hander can use it.
+                                    bot->AutoUnequipItemFromSlot(EQUIPMENT_SLOT_OFFHAND, false);
+                                    if (Item* stillEquipped = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND))
+                                        TortoiseBots::ReleaseReplacedItem(bot, stillEquipped);
+                                }
+                                displacedStored = true;
                             }
                         }
                         bool toBags = true;
