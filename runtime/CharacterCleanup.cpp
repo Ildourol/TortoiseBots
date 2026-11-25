@@ -227,8 +227,10 @@ void DeleteCharacterEverywhere(uint32 guidLow, uint32 accountId)
     // A `.bot gear` pin keys on the character guid; the guid is recycled, so
     // a new character must never inherit the old pin. Dismiss clears it on
     // the live path; this is the backstop for pool resets, GM deletes and
-    // startup recovery. World-thread-owned map, same as the callers.
-    BotGearService::Instance().UnpinBot(guidLow);
+    // startup recovery. Synchronous, like the module rows below: startup
+    // recovery reads the table back before the async queue drains, and a
+    // queued DELETE could land after a new character reused the guid.
+    BotGearService::Instance().UnpinBot(guidLow, true);
     // Pets before the character, database before cache: the pool's pet-number
     // oracle above must never see a number that the table still holds.
     DeleteCharacterPets(guidLow);

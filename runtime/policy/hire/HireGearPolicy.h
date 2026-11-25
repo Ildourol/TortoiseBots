@@ -88,6 +88,35 @@ inline char const* ResolveHireGearKeyForTab(uint8_t classId, int tab, bool tank)
     return specIndex < 0 ? nullptr : HireGearSpecKey(classId, specIndex);
 }
 
+// Gear-set spec key -> weightscale name (`ai_playerbot_weightscales`). The
+// offline generator writes its rows from the same mapping, so a kit row can
+// be checked against the spec it was generated for even when the bot's live
+// talents were forced to another build (`.bot role`). Keys never collide
+// across classes: "protection" is the warrior/paladin prot scale, "holy" the
+// paladin/priest one, "restoration" shaman/druid.
+inline char const* HireGearScaleName(char const* specKey)
+{
+    if (!specKey)
+        return nullptr;
+    struct Row { char const* key; char const* scale; };
+    static Row const rows[] = {
+        { "protection", "prot" }, { "arms", "arms" }, { "fury", "fury" },
+        { "holy", "holy" }, { "retribution", "retrib" },
+        { "beastmastery", "beast" }, { "marksmanship", "marks" }, { "survival", "surv" },
+        { "assassination", "assas" }, { "combat", "combat" }, { "subtlety", "subtle" },
+        { "discipline", "disc" }, { "shadow", "shadow" },
+        { "restoration", "resto" }, { "elemental", "elem" }, { "enhancement", "enhance" },
+        { "tank", "shamantank" },
+        { "frost", "frost" }, { "fire", "fire" }, { "arcane", "arcane" },
+        { "affliction", "afflic" }, { "demonology", "demo" }, { "destruction", "destro" },
+        { "bear", "feraltank" }, { "balance", "balance" }, { "cat", "feraldps" },
+    };
+    for (Row const& row : rows)
+        if (std::strcmp(row.key, specKey) == 0)
+            return row.scale;
+    return nullptr;
+}
+
 // Effective hire tier for PR 1: the master switch gates everything, StartTier
 // (0..7, clamped) is what every player has. 0 keeps today's behaviour.
 inline uint8_t EffectiveHireGearTier(bool enabled, uint32_t startTier)
@@ -104,6 +133,14 @@ inline uint8_t EffectiveHireGearTier(bool enabled, uint32_t startTier)
 inline bool HireGearTierEligible(uint8_t level, bool enabled, uint8_t tier)
 {
     return enabled && level == kHireGearHireLevel && tier >= 1 && tier <= kHireGearTierMax;
+}
+
+// A tier already recorded for the bot (a `.bot gear` pin or the hire kit it
+// was provisioned with) stays usable when tiers are switched off: the master
+// switch gates new hires and new pins, not refitting a kit the bot wears.
+inline bool RecordedHireGearTierUsable(uint8_t level, uint8_t tier)
+{
+    return level == kHireGearHireLevel && tier >= 1 && tier <= kHireGearTierMax;
 }
 
 // One table row, as loaded by the runtime cache.

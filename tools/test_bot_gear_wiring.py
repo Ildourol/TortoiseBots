@@ -79,10 +79,27 @@ class BotGearWiringTest(unittest.TestCase):
     def test_worn_above_cap_is_unequipped_not_destroyed(self):
         self.assertIn("UnequipAboveCapWorn(", SERVICE)
         self.assertIn("BotGear::WornAboveCap(", SERVICE)
-        wear = strip_comments(body(SERVICE, "uint32_t UnequipAboveCapWorn(Player* bot, uint32_t cap)", "\n}\n"))
+        wear = strip_comments(body(SERVICE, "uint32_t BotGearService::UnequipAboveCapWorn(Player* bot, uint32_t cap)", "\n}\n"))
         self.assertIn("bot->RemoveItem(", wear)
         self.assertIn("bot->StoreItem(", wear)
         self.assertNotIn("DestroyItem", wear)
+
+    def test_gear_mode_persists_and_refits(self):
+        # The mode a bot was last geared in survives a restart, and a respec
+        # refits that mode (kit under the same cap, or the pool under the
+        # recorded cap) instead of re-rolling the pool.
+        adapter = (ROOT / "host" / "BotGearAdapter.cpp").read_text()
+        self.assertIn("BotGearService::Instance().Load()", adapter)
+        self.assertIn("RememberGearMode(", SERVICE)
+        self.assertIn("RememberGearMode(", PROVISION_CPP)
+        talents = strip_comments((ROOT / "ai/playerbot/strategy/actions/ChangeTalentsAction.cpp").read_text())
+        self.assertIn("BotGearService::Instance().GearMode(", talents)
+        self.assertIn("DecideGearRefit(", talents)
+        # An already-recorded tier refits with the master switch off.
+        self.assertIn("RecordedHireGearTierUsable(", talents)
+        # A capped refit backfills skipped kit slots and ends under the cap.
+        self.assertIn("AutogearOwned(ITEM_QUALITY_EPIC", talents)
+        self.assertIn("UnequipAboveCapWorn(", talents)
 
     def test_pin_holds_the_cap_in_the_equip_path(self):
         equip = (ROOT / "ai/playerbot/strategy/actions/EquipAction.cpp").read_text()
@@ -104,6 +121,9 @@ class BotGearWiringTest(unittest.TestCase):
         self.assertIn("BotGearService::Instance().UnpinBot(", hire)
         cleanup = (ROOT / "runtime/CharacterCleanup.cpp").read_text()
         self.assertIn("BotGearService::Instance().UnpinBot(", cleanup)
+        # Synchronous there: startup recovery reads the table back before the
+        # async queue drains, and a recycled guid must not lose a new pin.
+        self.assertIn("UnpinBot(guidLow, true)", cleanup)
 
     def test_config_default_matches_header(self):
         self.assertIn('AiPlayerbot.BotGearPresets', CONFIG)

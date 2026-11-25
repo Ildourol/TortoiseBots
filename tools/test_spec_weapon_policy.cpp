@@ -13,7 +13,7 @@
 // Subclass literals mirrored from core ItemPrototype.h (see the policy header).
 static uint32_t const WAXE = 0, WAXE2 = 1, WBOW = 2, WGUN = 3, WMACE = 4, WMACE2 = 5,
     WPOLE = 6, WSWORD = 7, WSWORD2 = 8, WSTAFF = 10, WFIST = 13, WDAG = 15, WXBOW = 18;
-static uint32_t const WEAPON = 2, ARMOR = 4, MISC = 0, SHIELD = 6, LIBRAM = 7, TOTEM = 8;
+static uint32_t const WEAPON = 2, ARMOR = 4, MISC = 0, SHIELD = 6, LIBRAM = 7, IDOL = 8, TOTEM = 9;
 static uint32_t const WAR = 1, PAL = 2, HUNTER = 3, ROGUE = 4, SHAMAN = 7;
 static uint32_t const MH = 15, OH = 16, RH = 17;
 
@@ -93,6 +93,7 @@ int main()
     CHECK(SpecWeaponAllowed(SHAMAN, "shamantank", ARMOR, SHIELD, OH, true) == true);
     CHECK(SpecWeaponAllowed(SHAMAN, "shamantank", WEAPON, WAXE, OH, true) == false);
     CHECK(SpecWeaponAllowed(SHAMAN, "shamantank", ARMOR, TOTEM, RH, true) == true);
+    CHECK(SpecWeaponAllowed(SHAMAN, "shamantank", ARMOR, IDOL, RH, true) == false);
     CHECK(SpecWeaponAllowed(SHAMAN, "shamantank", ARMOR, LIBRAM, RH, true) == false);
     CHECK(SpecWeaponAllowed(SHAMAN, "resto", ARMOR, SHIELD, OH, true) == true);
     std::cout << "  [PASS] shaman tank takes slow 1H + shield + totem\n";
@@ -110,6 +111,7 @@ int main()
     CHECK(SpecWeaponAllowed(SHAMAN, "enhance", WEAPON, WAXE, OH, true) == false);
     CHECK(SpecWeaponAllowed(SHAMAN, "enhance", WEAPON, WDAG, OH, true) == false);
     CHECK(SpecWeaponAllowed(SHAMAN, "enhance", ARMOR, TOTEM, RH, true) == true);
+    CHECK(SpecWeaponAllowed(SHAMAN, "enhance", ARMOR, IDOL, RH, true) == false);
     std::cout << "  [PASS] shaman enhance takes 2H/1H stand-in + shield, no off-hand weapons\n";
 
     // Hunter: weapons in MH; OH gated on canDualWield.
