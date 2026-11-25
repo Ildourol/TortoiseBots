@@ -4,6 +4,7 @@
 #include "HireCost.h"
 #include "BotNameService.h"
 #include "HireLifecycle.h"
+#include "BotGearService.h"
 #include "CommandedGroupQuery.h"
 #include "RemoteCommanderPolicy.h"
 #include "runtime/policy/hire/HireIntroPolicy.h"
@@ -1895,7 +1896,8 @@ void HireProvisionService::ProvisionHireGear(Player* bot, PendingProvision const
     {
         // Saved by ProvisionHeavy right after this (issue #1043: one save per
         // hire, so the pet is not written by two racing transactions).
-        HireLifecycle::Instance().SetGearTier(bot->GetObjectGuid(), tier);
+        // Remembered as a gear mode: a talent change refits the same tier.
+        BotGearService::Instance().RememberGearMode(bot->GetGUIDLow(), BotGearPin{tier, 0});
     }
 }
 
@@ -1906,6 +1908,19 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
         return false;
     if (!HireGearCache::Instance().HasSetFor(classId, specKey, tier))
         return false;
+    // One slot-rule set for every gear path (runtime/policy/gear/). The kit
+    // generator is spec-correct, so this is a drift guard: a row the kit's
+    // spec would never wear in that slot (a shield in the main hand, a second
+    // one-hander for a shield tank) is skipped, never equipped over pool gear.
+    // The kit key decides the spec, not the live talents: a forced tank role
+    // can wear the tank kit on a DPS build, and that shield must still land.
+    uint32_t botSpecId = 0;
+    if (char const* scaleName = HireGearScaleName(specKey))
+        botSpecId = sRandomItemMgr.GetSpecIdFor(classId, scaleName);
+    if (!botSpecId)
+        botSpecId = sRandomItemMgr.GetPlayerSpecId(bot);
+    if (!botSpecId)
+        botSpecId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
     for (uint8 slot = 0; slot < EQUIPMENT_SLOT_END; ++slot)
     {
         HireGearRow const* row = nullptr;
@@ -1931,6 +1946,13 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
         // A blocked row is skipped entirely: never equipped, never enchanted.
         if (GearBlacklistBlocks(sPlayerbotAIConfig.randomGearBlacklist, row->itemId))
             continue;
+        ItemPrototype const* proto = sObjectMgr.GetItemPrototype(row->itemId);
+        if (proto && botSpecId &&
+            (slot == EQUIPMENT_SLOT_MAINHAND || slot == EQUIPMENT_SLOT_OFFHAND ||
+                slot == EQUIPMENT_SLOT_RANGED) &&
+            !sRandomItemMgr.ShouldEquipWeaponForSlot(bot, bot->GetClass(), uint8_t(botSpecId),
+                proto, slot, bot->CanDualWield()))
+            continue;
         if (!oldItem || oldItem->GetEntry() != row->itemId)
         {
             // The hire gear table comes from the offline generator; an
@@ -1938,7 +1960,6 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
             if (sRandomItemMgr.IsTransmogClone(row->itemId))
                 continue;
             // A 2H main hand cannot be equipped while the offhand is held.
-            ItemPrototype const* proto = sObjectMgr.GetItemPrototype(row->itemId);
             if (slot == EQUIPMENT_SLOT_MAINHAND && proto && proto->InventoryType == INVTYPE_2HWEAPON)
                 if (Item* offhand = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND))
                     bot->DestroyItem(offhand->GetBagSlot(), offhand->GetSlot(), true);

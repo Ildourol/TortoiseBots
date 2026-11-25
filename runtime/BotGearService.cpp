@@ -18,6 +18,8 @@
 // pi-lens-ignore: clang:pp_file_not_found
 #include "Chat.h"
 // pi-lens-ignore: clang:pp_file_not_found
+#include "Database/DatabaseEnv.h"
+// pi-lens-ignore: clang:pp_file_not_found
 #include "ObjectAccessor.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "ObjectMgr.h"
@@ -30,6 +32,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <ctime>
+#include <memory>
 #include <set>
 
 namespace TortoiseBots
@@ -141,9 +145,47 @@ bool BotGearService::Queue(uint64_t requesterGuid, std::vector<ObjectGuid> const
     return true;
 }
 
+void BotGearService::Load()
+{
+    m_pinned.clear();
+    std::unique_ptr<QueryResult> result(CharacterDatabase.Query(
+        "SELECT `guid`, `tier`, `ilvl_cap` FROM `tortoise_bots_gear_mode`"));
+    if (!result)
+        return;
+    do
+    {
+        Field* fields = result->Fetch();
+        uint32_t guidLow = fields[0].GetUInt32();
+        if (!guidLow)
+            continue;
+        m_pinned[guidLow] = BotGearPin{
+            static_cast<uint8_t>(fields[1].GetUInt8()), fields[2].GetUInt32() };
+    } while (result->NextRow());
+}
+
 bool BotGearService::IsPinned(uint32_t guidLow) const
 {
     return m_pinned.count(guidLow) != 0;
+}
+
+bool BotGearService::GearMode(uint32_t guidLow, BotGearPin& out) const
+{
+    auto it = m_pinned.find(guidLow);
+    if (it == m_pinned.end())
+        return false;
+    out = it->second;
+    return true;
+}
+
+void BotGearService::RememberGearMode(uint32_t guidLow, BotGearPin mode)
+{
+    if (!guidLow)
+        return;
+    CharacterDatabase.PExecute(
+        "REPLACE INTO `tortoise_bots_gear_mode` (`guid`, `tier`, `ilvl_cap`, `updated`) "
+        "VALUES ('%u', '%u', '%u', '%u')",
+        guidLow, uint32_t(mode.tier), mode.ilvlCap, uint32_t(time(nullptr)));
+    m_pinned[guidLow] = mode;
 }
 
 uint32_t BotGearService::PinnedCap(uint32_t guidLow) const
@@ -155,6 +197,7 @@ uint32_t BotGearService::PinnedCap(uint32_t guidLow) const
 void BotGearService::UnpinBot(uint32_t guidLow)
 {
     m_pinned.erase(guidLow);
+    CharacterDatabase.PExecute("DELETE FROM `tortoise_bots_gear_mode` WHERE `guid` = '%u'", guidLow);
 }
 
 uint32_t BotGearService::WornMaxIlvl(Player* bot)
@@ -335,7 +378,7 @@ void BotGearService::Update(uint32_t /*diff*/)
         outcome.geared = true;
         m_job.result.bots.push_back(outcome);
         bot->SaveToDB();
-        m_pinned[guid.GetCounter()] = BotGearPin{m_job.args.tier, m_job.args.ilvlCap};
+        RememberGearMode(guid.GetCounter(), BotGearPin{m_job.args.tier, m_job.args.ilvlCap});
     }
     if (m_job.next < m_job.bots.size())
         return;

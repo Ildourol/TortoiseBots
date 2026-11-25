@@ -187,9 +187,7 @@ void PlayerbotFactory::AutogearOwned(uint32 cappedQuality, uint32 ilvlCap)
     if (cappedQuality > ITEM_QUALITY_LEGENDARY)
         cappedQuality = ITEM_QUALITY_LEGENDARY;
     itemQuality = cappedQuality;
-    ammoAwareRanged = true;
     InitEquipment(true, false, sPlayerbotAIConfig.randomGearProgression, false, ilvlCap);
-    ammoAwareRanged = false;
     bot->SaveToDB();
 }
 
@@ -1617,12 +1615,14 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
     // Randomize) keep deterministic best-first behaviour.
     bool const seedSpread = incremental && !syncWithMaster && itemQuality == 0;
 
-    // Autogear ranged pick (owned bots): which ammo the bags hold now, so a
-    // gun is not picked for a bot that only carries arrows (auto shot would
-    // be dead). Read once; the ranged slot never changes the bags.
+    // Ranged pick: which ammo the bags hold now, so a gun is not picked for a
+    // bot that only carries arrows (auto shot would be dead). Every bot gear
+    // pass uses it; only `.autogear` on a real player (playerUpgrade) scores
+    // purely, since it hands out no ammo and warns instead. Read once; the
+    // ranged slot never changes the bags.
     bool bagsHaveArrows = false;
     bool bagsHaveBullets = false;
-    if (ammoAwareRanged)
+    if (!playerUpgrade)
     {
         bagsHaveArrows = HasAmmoInBagsFor(ITEM_SUBCLASS_WEAPON_BOW);
         bagsHaveBullets = HasAmmoInBagsFor(ITEM_SUBCLASS_WEAPON_GUN);
@@ -1631,6 +1631,20 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
     // A real player and an owned bot keep whatever they wear: the blacklist
     // only filters candidates, never scores worn gear down or removes it.
     bool const keepsWornGear = playerUpgrade || (ai && ai->IsOwnedBot());
+
+    // One slot-rule set for every gear path: the same answer the equip audit
+    // and the vendor buy use (runtime/policy/gear/SpecWeaponPolicy.h through
+    // RandomItemMgr). A shield tank takes a one-hander plus a shield and never
+    // a second one-hander in the off hand; a two-hand spec leaves the off hand
+    // empty; casters/hunters get what their spec can actually wield.
+    auto weaponSlotAllows = [&](uint8 slot, ItemPrototype const* proto)
+    {
+        if (slot != EQUIPMENT_SLOT_MAINHAND && slot != EQUIPMENT_SLOT_OFFHAND &&
+            slot != EQUIPMENT_SLOT_RANGED)
+            return true;
+        return sRandomItemMgr.ShouldEquipWeaponForSlot(bot, bot->GetClass(), uint8(specId),
+            proto, slot, bot->CanDualWield());
+    };
 
     for(uint8 slot = 0; slot < EQUIPMENT_SLOT_END; ++slot)
     {
@@ -1997,33 +2011,16 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                     if (proto->ItemLevel > maxItemLevel)
                         continue;
                     // Never two equipped copies of a unique-equipped item,
-                    // counting what is already worn (real players only; the
-                    // paired-slot guard above covers the twin slot).
-                    if (playerUpgrade &&
-                        !TortoiseBots::AutogearUniqueAllowed(
+                    // counting what is already worn: a unique ring in the
+                    // first finger keeps it out of the second (and a unique
+                    // trinket out of the second trinket slot).
+                    if (!TortoiseBots::AutogearUniqueAllowed(
                             (proto->Flags & ITEM_FLAG_UNIQUE_EQUIPPED) != 0,
                             CountEquippedCopies(bot, newItemId)))
                         continue;
-                    // filter tank weapons (prot warrior/paladin, shaman tank id 16)
-                    if (slot == EQUIPMENT_SLOT_OFFHAND && (specId == 3 || specId == 5 || specId == 16) && !(proto->Class == ITEM_CLASS_ARMOR && proto->SubClass == ITEM_SUBCLASS_ARMOR_SHIELD))
-                        continue;
-
-                    if (slot == EQUIPMENT_SLOT_MAINHAND && proto->Class == ITEM_CLASS_ARMOR && proto->SubClass == ITEM_SUBCLASS_ARMOR_SHIELD)
-                        continue;
-
-                    if (slot == EQUIPMENT_SLOT_MAINHAND && proto->InventoryType == INVTYPE_HOLDABLE)
-                        continue;
-
-                    // Caster off-hand ("held in off-hand") on a melee class:
-                    // ShouldEquipArmorForSpec already rejects it, but the
-                    // cached query can still return it - filter here too so
-                    // warriors/rogues/hunters never equip it (Issue #219).
-                    if (slot == EQUIPMENT_SLOT_OFFHAND && proto->InventoryType == INVTYPE_HOLDABLE &&
-                        (bot->GetClass() == CLASS_WARRIOR || bot->GetClass() == CLASS_ROGUE || bot->GetClass() == CLASS_HUNTER))
-                        continue;
-
-                    // filter tank weapons (prot warrior/paladin, shaman tank id 16)
-                    if (slot == EQUIPMENT_SLOT_MAINHAND && (specId == 3 || specId == 5 || specId == 16) && !(proto->Class == ITEM_CLASS_WEAPON && proto->InventoryType != INVTYPE_HOLDABLE))
+                    // Spec slot rules for the weapons (shared with kit and
+                    // audit; see weaponSlotAllows above).
+                    if (!weaponSlotAllows(slot, proto))
                         continue;
 
                     // make fury wear slow weapon as main hand
@@ -2032,39 +2029,26 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
 
                     // shaman tank (id 16) wants a slow 1H main hand for threat;
                     // same 2.0s bar as fury so fast stat sticks never seed over it
-                    if (slot == EQUIPMENT_SLOT_MAINHAND && specId == 16 && proto->IsWeapon() && proto->InventoryType != INVTYPE_2HWEAPON && proto->Delay < 2000)
+                    if (slot == EQUIPMENT_SLOT_MAINHAND && specId == 16 && proto->IsWeapon() && proto->Delay < 2000)
                         continue;
 
                     // classic enh shaman and retri paladin 60+ use weapon speed >= 3.0
                     if (slot == EQUIPMENT_SLOT_MAINHAND && (specId == 6 || specId == 21) && proto->IsWeapon() && bot->GetLevel() >= 60 && proto->InventoryType == INVTYPE_2HWEAPON && proto->Delay < 3000)
                         continue;
 
-                    // filter caster weapons
+                    // Caster preference (rolled once per bot): a staff bot
+                    // never rolls a one-hander and a one-hander bot never
+                    // rolls a staff; a staff leaves the off hand empty. Slot
+                    // legality is above.
                     if (weaponType)
                     {
-                        if (slot == EQUIPMENT_SLOT_MAINHAND)
-                        {
-                            if (proto->Class == ITEM_CLASS_ARMOR && proto->SubClass == ITEM_SUBCLASS_ARMOR_SHIELD)
-                                continue;
-                            if (weaponType == INVTYPE_2HWEAPON && proto->Class == ITEM_CLASS_WEAPON && proto->InventoryType != INVTYPE_2HWEAPON)
-                                continue;
-                            if (weaponType != INVTYPE_2HWEAPON && proto->Class == ITEM_CLASS_WEAPON && proto->InventoryType == INVTYPE_2HWEAPON)
-                                continue;
-                            if (proto->InventoryType == INVTYPE_HOLDABLE)
-                                continue;
-                        }
-                        if (slot == EQUIPMENT_SLOT_OFFHAND)
-                        {
-                            if (weaponType != INVTYPE_2HWEAPON && (bot->GetClass() == CLASS_PRIEST || bot->GetClass() == CLASS_MAGE || bot->GetClass() == CLASS_WARLOCK || (bot->GetClass() == CLASS_DRUID && (specId == 29 || specId == 31))) && proto->InventoryType != INVTYPE_HOLDABLE)
-                                continue;
-                            if (weaponType == INVTYPE_2HWEAPON && (bot->GetClass() == CLASS_PRIEST || bot->GetClass() == CLASS_MAGE || bot->GetClass() == CLASS_WARLOCK || (bot->GetClass() == CLASS_DRUID && (specId == 29 || specId == 31))))
-                                continue;
-
-                            if (weaponType != INVTYPE_2HWEAPON && proto->Class == ITEM_CLASS_WEAPON && proto->InventoryType == INVTYPE_2HWEAPON)
-                                continue;
-                        }
+                        if (slot == EQUIPMENT_SLOT_MAINHAND &&
+                            proto->Class == ITEM_CLASS_WEAPON &&
+                            ((weaponType == INVTYPE_2HWEAPON) != (proto->InventoryType == INVTYPE_2HWEAPON)))
+                            continue;
+                        if (slot == EQUIPMENT_SLOT_OFFHAND && weaponType == INVTYPE_2HWEAPON)
+                            continue;
                     }
-
 
                     if (oldItem && oldProto->ItemId == newItemId)
                         continue;
@@ -2158,7 +2142,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
 
                     // Autogear: an equipped ranged weapon without ammo in the bags is
                     // replaced by any weapon the bags do have ammo for, even a lower-scored one.
-                    bool const rangedDudFixed = ammoAwareRanged && slot == EQUIPMENT_SLOT_RANGED &&
+                    bool const rangedDudFixed = !playerUpgrade && slot == EQUIPMENT_SLOT_RANGED &&
                         TortoiseBots::OwnedBotRangedReplacesDud(RangedAmmoKindOf(oldProto), RangedAmmoKindOf(proto),
                             bagsHaveArrows, bagsHaveBullets);
                     if (incremental && oldItem && oldStatValue >= newStatValue && oldStatValue > 1 && !rangedDudFixed)
@@ -2166,7 +2150,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
 
                     // Autogear ranged pick: bow/crossbow only with arrows, gun
                     // only with bullets; with no ammo, keep the previous type.
-                    if (ammoAwareRanged && slot == EQUIPMENT_SLOT_RANGED &&
+                    if (!playerUpgrade && slot == EQUIPMENT_SLOT_RANGED &&
                         !TortoiseBots::OwnedBotAcceptRangedPick(RangedAmmoKindOf(oldProto), oldStatValue,
                             RangedAmmoKindOf(proto), newStatValue, bagsHaveArrows, bagsHaveBullets))
                         continue;
@@ -2371,9 +2355,15 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                     if (proto->Class == ITEM_CLASS_ARMOR &&
                         !sRandomItemMgr.ShouldEquipArmorForSpec(bot->GetClass(), uint8(specId), proto))
                         continue;
-                    // Caster off-hand on a melee class (Issue #219), as in the normal pass.
-                    if (slot == EQUIPMENT_SLOT_OFFHAND && proto->InventoryType == INVTYPE_HOLDABLE &&
-                        (bot->GetClass() == CLASS_WARRIOR || bot->GetClass() == CLASS_ROGUE || bot->GetClass() == CLASS_HUNTER))
+                    // Same weapon slot rules the normal pass uses, so the
+                    // backstop can never fill a shield tank's off hand with a
+                    // second one-hander or a 2H spec's off hand at all.
+                    if (!weaponSlotAllows(slot, proto))
+                        continue;
+                    // Ranged pick fits the ammo in the bags, like the normal pass.
+                    if (!playerUpgrade && slot == EQUIPMENT_SLOT_RANGED &&
+                        !TortoiseBots::OwnedBotAcceptRangedPick(TortoiseBots::RangedAmmoKind::Empty, 0,
+                            RangedAmmoKindOf(proto), 0, bagsHaveArrows, bagsHaveBullets))
                         continue;
                     EmptySlotCandidate c;
                     c.itemId = fallbackId;

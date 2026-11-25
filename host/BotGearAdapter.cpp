@@ -11,6 +11,7 @@ BotGearAdapter::BotGearAdapter()
 
 void BotGearAdapter::OnStartup()
 {
+    BotGearService::Instance().Load();
 }
 
 void BotGearAdapter::OnUpdate(uint32 diff)

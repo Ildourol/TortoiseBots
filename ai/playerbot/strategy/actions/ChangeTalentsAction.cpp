@@ -4,7 +4,7 @@
 #include "ChangeTalentsAction.h"
 #include "playerbot/AiFactory.h"
 #include "playerbot/PlayerbotFactory.h"
-#include "../../../../runtime/HireLifecycle.h"
+#include "../../../../runtime/BotGearService.h"
 #include "../../../../runtime/policy/hire/HireGearPolicy.h"
 #include "../../../../runtime/policy/hire/HireRespecPolicy.h"
 #include "../../../../runtime/HireTierRequestPolicy.h"
@@ -169,30 +169,38 @@ bool ChangeTalentsAction::Execute(Event& event)
     // and the reset rebuilds defaults for the newly learned topology.
     if (TalentSpec(bot).GetTalentLink() != previousTalentLink)
     {
-        uint8_t tier = TortoiseBots::HireLifecycle::Instance().GearTier(bot->GetObjectGuid());
-        // Issue #189 Phase 3: explicit respec re-scores gear incrementally
-        // for the new spec. Random-pool only; never wipes, level-up auto
-        // path passes through here too and stays incremental. A hire in a
-        // #490 tier kit refits below instead of re-rolling pool gear.
-        if (!param.empty() && sRandomBotFacade.IsRandomBot(bot) && tier == 0)
+        TortoiseBots::BotGearPin gearMode;
+        bool const hasGearMode = TortoiseBots::BotGearService::Instance().GearMode(bot->GetGUIDLow(), gearMode);
+        TortoiseBots::GearRefit const refit = TortoiseBots::DecideGearRefit(
+            !param.empty(), sRandomBotFacade.IsRandomBot(bot), hasGearMode, gearMode);
+        // Issue #189 Phase 3: explicit respec re-scores gear incrementally for
+        // the new spec. A pool bot keeps the pool rule (level plus the pool
+        // allowance, same as its seed); a bot pinned by `.bot gear` keeps the
+        // pin's item-level cap. Never wipes, level-up auto path passes through
+        // here too and stays incremental.
+        if (refit == TortoiseBots::GearRefit::Pool || refit == TortoiseBots::GearRefit::PoolWithCap)
         {
             PlayerbotFactory gear(bot, bot->GetLevel());
-            // Owner rule: a pool bot's re-gear stays inside the pool
-            // generated-gear cap, same as its seed.
-            gear.UsePoolGearCap();
-            gear.UpgradeGearBest();
-            bot->SaveToDB();
+            if (refit == TortoiseBots::GearRefit::PoolWithCap)
+                gear.AutogearOwned(ITEM_QUALITY_EPIC, gearMode.ilvlCap);
+            else
+            {
+                gear.UsePoolGearCap();
+                gear.UpgradeGearBest();
+                bot->SaveToDB();
+            }
         }
         sPlayerbotDbStore.InvalidateStrategySnapshots(ai);
         ai->UpdateTalentSpec();
         ai->ResetStrategies();
-        // Issue #490 PR 3: a tier-kit hire keeps its tier but takes the new
-        // spec's kit (same tier, no new charge). The forced role follows the
-        // new build first (ret -> holy, warrior dps -> tank), so the refit
-        // and the rebuilt strategies agree; then the reset runs again under
-        // the new role. No set for the new spec keeps the current kit.
-        if (!param.empty() && tier > 0)
-            RespecHireGearKit(bot, out);
+        // Issue #490 PR 3: a bot geared in a curated tier kit keeps that mode:
+        // same tier, same cap, the new spec's kit (no new charge). The forced
+        // role follows the new build first (ret -> holy, warrior dps -> tank),
+        // so the refit and the rebuilt strategies agree; then the reset runs
+        // again under the new role. No set for the new spec keeps the current
+        // kit.
+        if (refit == TortoiseBots::GearRefit::Kit)
+            RespecHireGearKit(bot, out, gearMode);
     }
 
     ai->TellPlayer(requester, out, PlayerbotSecurityLevel::PLAYERBOT_SECURITY_ALLOW_ALL, false);
@@ -264,12 +272,12 @@ std::string ChangeTalentsAction::GetPremadePathName(uint8 cls, int id)
     return std::string();
 }
 
-void ChangeTalentsAction::RespecHireGearKit(Player* bot, std::ostringstream& out)
+void ChangeTalentsAction::RespecHireGearKit(Player* bot, std::ostringstream& out, TortoiseBots::GearMode mode)
 {
     if (!bot || !ai)
         return;
     uint8_t cls = bot->GetClass();
-    uint8_t tier = TortoiseBots::HireLifecycle::Instance().GearTier(bot->GetObjectGuid());
+    uint8_t tier = mode.tier;
     if (!TortoiseBots::HireGearTierEligible(bot->GetLevel(), sPlayerbotAIConfig.hireGearTiersEnabled, tier))
         return;
     // New build's role first: the premade filter in getPremadePaths and the
@@ -294,7 +302,7 @@ void ChangeTalentsAction::RespecHireGearKit(Player* bot, std::ostringstream& out
     char const* specKey = TortoiseBots::ResolveHireGearSpecKey(cls, specIndex, role);
     if (!specKey)
         return;
-    if (TortoiseBots::HireProvisionService::EquipHireGearSet(bot, ai, cls, specKey, bot->GetRace(), tier))
+    if (TortoiseBots::HireProvisionService::EquipHireGearSet(bot, ai, cls, specKey, bot->GetRace(), tier, mode.ilvlCap))
     {
         bot->SaveToDB();
         ai->UpdateTalentSpec();

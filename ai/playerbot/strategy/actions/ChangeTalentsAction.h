@@ -5,6 +5,8 @@
 #include "playerbot/Talentspec.h"
 #include "GenericActions.h"
 
+#include "../../../../runtime/policy/gear/GearRefitPolicy.h"
+
 namespace ai
 {
     class ChangeTalentsAction : public ChatCommandAction
@@ -30,10 +32,11 @@ namespace ai
         // tier-kit respec can map the new build back to a gear-set key.
         // Empty when the class has no premade paths.
         static std::string GetPremadePathName(uint8 cls, int id);
-        // Refit after a tier-kit respec: follow the new build's role, equip
-        // the same tier's kit for the new spec, rebuild strategies again.
-        // Quiet unless no set exists for the new spec (then the kit stays).
-        void RespecHireGearKit(Player* bot, std::ostringstream& out);
+        // Refit after an explicit respec in the mode the bot was last geared
+        // in: follow the new build's role, equip the same tier kit under the
+        // same item-level cap, rebuild strategies again. Quiet unless no set
+        // exists for the new spec (then the kit stays).
+        void RespecHireGearKit(Player* bot, std::ostringstream& out, TortoiseBots::GearMode mode);
      private:
          static std::vector<TalentPath*> getPremadePaths(Player* bot, TalentSpec* oldSpec);
          static TalentPath* getPremadePath(uint8 cls, int id);

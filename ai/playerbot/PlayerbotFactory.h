@@ -257,9 +257,6 @@ private:
     uint32 slotMask = 0;
     PlayerbotAI* ai;
     Player* bot;
-    // Set only by AutogearOwned: InitEquipment then filters the ranged slot
-    // by the ammo the bags hold.
-    bool ammoAwareRanged = false;
     // Set only by AutogearPlayer: InitEquipment runs with the forced spec,
     // never destroys anything and reports every slot it upgrades.
     bool playerUpgrade = false;

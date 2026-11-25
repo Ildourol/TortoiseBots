@@ -76,6 +76,32 @@ static void TestRoleFallback()
     CHECK(ResolveHireGearSpecKey(6, -1, kHireRoleDps) == nullptr);
 }
 
+// Kit spec key -> weightscale name the slot rules check rows against.
+static void TestGearScaleName()
+{
+    CHECK(std::string(HireGearScaleName("protection")) == "prot");
+    CHECK(std::string(HireGearScaleName("retribution")) == "retrib");
+    CHECK(std::string(HireGearScaleName("tank")) == "shamantank");
+    CHECK(std::string(HireGearScaleName("enhancement")) == "enhance");
+    CHECK(std::string(HireGearScaleName("bear")) == "feraltank");
+    CHECK(std::string(HireGearScaleName("cat")) == "feraldps");
+    CHECK(std::string(HireGearScaleName("restoration")) == "resto");
+    CHECK(std::string(HireGearScaleName("beastmastery")) == "beast");
+    CHECK(std::string(HireGearScaleName("destruction")) == "destro");
+    CHECK(HireGearScaleName(nullptr) == nullptr);
+    CHECK(HireGearScaleName("") == nullptr);
+    CHECK(HireGearScaleName("nonsense") == nullptr);
+    // Every recruiter menu key must resolve, or a kit row is never checked.
+    for (uint8_t cls : { kHireClassWarrior, kHireClassPaladin, kHireClassHunter, kHireClassRogue,
+             kHireClassPriest, kHireClassShaman, kHireClassMage, kHireClassWarlock, kHireClassDruid })
+    {
+        uint32_t count = 0;
+        (void)HireSpecOptions(cls, count);
+        for (uint32_t i = 0; i < count; ++i)
+            CHECK(HireGearScaleName(HireGearSpecKey(cls, static_cast<int>(i))) != nullptr);
+    }
+}
+
 // Master switch gates everything; StartTier clamps to 0..7.
 static void TestEffectiveTier()
 {
@@ -161,6 +187,7 @@ int main()
 {
     TestSpecKeys();
     TestRoleFallback();
+    TestGearScaleName();
     TestOwnSpecKey();
     TestEffectiveTier();
     TestEligibility();

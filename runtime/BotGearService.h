@@ -7,6 +7,7 @@
 // pi-lens-ignore: clang:pp_file_not_found
 #include "ObjectGuid.h"
 
+#include "policy/gear/GearRefitPolicy.h"
 #include "policy/hire/BotGearPolicy.h"
 
 #include <cstdint>
@@ -20,11 +21,10 @@ class PlayerbotAI;
 namespace TortoiseBots
 {
 
-struct BotGearPin
-{
-    uint8_t tier = 0;
-    uint32_t ilvlCap = 0;
-};
+// How the bot was last geared, persisted in tortoise_bots_gear_mode so a
+// talent change refits the same mode and the item-level cap survives a
+// restart. See policy/gear/GearRefitPolicy.h.
+using BotGearPin = GearMode;
 
 class BotGearService
 {
@@ -59,9 +59,17 @@ public:
 
     bool Queue(uint64_t requesterGuid, std::vector<ObjectGuid> const& bots, BotGear::Args const& args);
     void Update(uint32_t diff);
+    // Startup load of the remembered gear modes (tortoise_bots_gear_mode).
+    void Load();
 
     bool Busy() const { return m_running; }
     bool IsPinned(uint32_t guidLow) const;
+    // The mode a pinned bot was geared in; false when no pass recorded one.
+    // ChangeTalentsAction refits this mode after a spec change.
+    bool GearMode(uint32_t guidLow, BotGearPin& out) const;
+    // Records the mode and persists it. Used by the `.bot gear` pass and by
+    // hire kit provisioning (a tier kit is the same kind of mode).
+    void RememberGearMode(uint32_t guidLow, BotGearPin mode);
     // The cap a pinned bot gears under (0 = no cap recorded). Consulted by
     // the bot's own auto-equip path so a pinned bot never puts an above-cap
     // item back on (raid-w1-r2 item 2).
