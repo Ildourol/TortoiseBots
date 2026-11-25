@@ -1908,8 +1908,8 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
         return false;
     if (!HireGearCache::Instance().HasSetFor(classId, specKey, tier))
         return false;
-    // One slot-rule set for every gear path (runtime/policy/gear/). The kit
-    // generator is spec-correct, so this is a drift guard: a row the kit's
+    // One slot-rule set for every gear path (ai/playerbot/policy/gear/). The
+    // kit generator is spec-correct, so this is a drift guard: a row the kit's
     // spec would never wear in that slot (a shield in the main hand, a second
     // one-hander for a shield tank) is skipped, never equipped over pool gear.
     // The kit key decides the spec, not the live talents: a forced tank role
@@ -1950,7 +1950,7 @@ bool HireProvisionService::EquipHireGearSet(Player* bot, PlayerbotAI* ai, uint8_
         if (proto && botSpecId &&
             (slot == EQUIPMENT_SLOT_MAINHAND || slot == EQUIPMENT_SLOT_OFFHAND ||
                 slot == EQUIPMENT_SLOT_RANGED) &&
-            !sRandomItemMgr.ShouldEquipWeaponForSlot(bot, bot->GetClass(), uint8_t(botSpecId),
+            !sRandomItemMgr.ShouldEquipWeaponForSlot(bot->GetClass(), uint8_t(botSpecId),
                 proto, slot, bot->CanDualWield()))
             continue;
         if (!oldItem || oldItem->GetEntry() != row->itemId)

@@ -1,4 +1,4 @@
--- Remembered gear mode per bot (TB #1690): how the bot was last geared.
+-- Remembered gear mode per bot: how the bot was last geared.
 --
 -- One row per bot pinned by `.bot gear` or provisioned with a curated hire
 -- kit. `tier` 1-7 is the curated hire tier; `tier` 0 with an `ilvl_cap` is the

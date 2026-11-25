@@ -1,4 +1,4 @@
-// Standalone test for the remembered gear mode (TB #1690): a bot geared with
+// Standalone test for the remembered gear mode: a bot geared with
 // `.bot gear tier N ilvl=X` that changes talents refits the same tier kit
 // under the same cap, a pool bot re-rolls the pool, and a bot nobody geared
 // explicitly is left alone on an autonomous level-up talent convergence.

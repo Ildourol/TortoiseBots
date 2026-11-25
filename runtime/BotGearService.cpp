@@ -92,37 +92,6 @@ void CollectCreatedItemGuids(Player* bot, std::set<uint32_t> const& before, std:
             created.insert(guidLow);
 }
 
-// After gearing, a still-worn weapon/armor above the cap is unequipped to the
-// bags (never destroyed), so "no worn weapon/armor above the cap" holds.
-// Returns the count moved. A full bag keeps the piece worn (reported, not
-// lost): the pin still stops the bot re-equipping it later.
-uint32_t UnequipAboveCapWorn(Player* bot, uint32_t cap)
-{
-    if (!bot || !cap)
-        return 0;
-    uint32_t moved = 0;
-    for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
-    {
-        Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
-        ItemPrototype const* proto = item ? item->GetProto() : nullptr;
-        if (!proto)
-            continue;
-        if (proto->Class != BotGear::ITEM_CLASS_WEAPON && proto->Class != BotGear::ITEM_CLASS_ARMOR)
-            continue;
-        if (!BotGear::WornAboveCap(proto->ItemLevel, cap))
-            continue;
-        ItemPosCountVec dest;
-        if (bot->CanStoreItem(NULL_BAG, NULL_SLOT, dest, item, false) != EQUIP_ERR_OK)
-            continue;
-        uint8 bag = item->GetBagSlot();
-        uint8 wornSlot = item->GetSlot();
-        bot->RemoveItem(bag, wornSlot, true);
-        bot->StoreItem(dest, item, true);
-        ++moved;
-    }
-    return moved;
-}
-
 } // namespace
 BotGearService& BotGearService::Instance()
 {
@@ -194,10 +163,13 @@ uint32_t BotGearService::PinnedCap(uint32_t guidLow) const
     return it != m_pinned.end() ? it->second.ilvlCap : 0;
 }
 
-void BotGearService::UnpinBot(uint32_t guidLow)
+void BotGearService::UnpinBot(uint32_t guidLow, bool synchronous)
 {
     m_pinned.erase(guidLow);
-    CharacterDatabase.PExecute("DELETE FROM `tortoise_bots_gear_mode` WHERE `guid` = '%u'", guidLow);
+    if (synchronous)
+        CharacterDatabase.DirectPExecute("DELETE FROM `tortoise_bots_gear_mode` WHERE `guid` = '%u'", guidLow);
+    else
+        CharacterDatabase.PExecute("DELETE FROM `tortoise_bots_gear_mode` WHERE `guid` = '%u'", guidLow);
 }
 
 uint32_t BotGearService::WornMaxIlvl(Player* bot)
@@ -237,6 +209,36 @@ float BotGearService::AverageWornIlvl(Player* bot)
     return count ? static_cast<float>(sum) / static_cast<float>(count) : 0.0f;
 }
 
+// After gearing, a still-worn weapon/armor above the cap is unequipped to the
+// bags (never destroyed), so "no worn weapon/armor above the cap" holds.
+// Returns the count moved. A full bag keeps the piece worn (reported, not
+// lost): the pin still stops the bot re-equipping it later.
+uint32_t BotGearService::UnequipAboveCapWorn(Player* bot, uint32_t cap)
+{
+    if (!bot || !cap)
+        return 0;
+    uint32_t moved = 0;
+    for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+    {
+        Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+        ItemPrototype const* proto = item ? item->GetProto() : nullptr;
+        if (!proto)
+            continue;
+        if (proto->Class != BotGear::ITEM_CLASS_WEAPON && proto->Class != BotGear::ITEM_CLASS_ARMOR)
+            continue;
+        if (!BotGear::WornAboveCap(proto->ItemLevel, cap))
+            continue;
+        ItemPosCountVec dest;
+        if (bot->CanStoreItem(NULL_BAG, NULL_SLOT, dest, item, false) != EQUIP_ERR_OK)
+            continue;
+        uint8 bag = item->GetBagSlot();
+        uint8 wornSlot = item->GetSlot();
+        bot->RemoveItem(bag, wornSlot, true);
+        bot->StoreItem(dest, item, true);
+        ++moved;
+    }
+    return moved;
+}
 
 void BotGearService::SendLines(uint64_t requesterGuid, std::string const& plain, std::string const& structured)
 {

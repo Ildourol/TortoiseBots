@@ -126,6 +126,14 @@ inline bool HireGearTierEligible(uint8_t level, bool enabled, uint8_t tier)
     return enabled && level == kHireGearHireLevel && tier >= 1 && tier <= kHireGearTierMax;
 }
 
+// A tier already recorded for the bot (a `.bot gear` pin or the hire kit it
+// was provisioned with) stays usable when tiers are switched off: the master
+// switch gates new hires and new pins, not refitting a kit the bot wears.
+inline bool RecordedHireGearTierUsable(uint8_t level, uint8_t tier)
+{
+    return level == kHireGearHireLevel && tier >= 1 && tier <= kHireGearTierMax;
+}
+
 // One table row, as loaded by the runtime cache.
 struct HireGearRow
 {

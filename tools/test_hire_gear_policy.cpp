@@ -123,6 +123,17 @@ static void TestEligibility()
     CHECK(!HireGearTierEligible(60, true, 8));
 }
 
+// A tier already recorded for the bot refits even with tiers switched off;
+// only the level and tier range still apply.
+static void TestRecordedTier()
+{
+    CHECK(RecordedHireGearTierUsable(60, 1));
+    CHECK(RecordedHireGearTierUsable(60, 7));
+    CHECK(!RecordedHireGearTierUsable(60, 0));
+    CHECK(!RecordedHireGearTierUsable(59, 7));
+    CHECK(!RecordedHireGearTierUsable(60, 8));
+}
+
 static HireGearRow MakeRow(uint8_t cls, char const* spec, uint8_t race, uint8_t tier, uint8_t slot,
     uint32_t item, uint32_t enchant)
 {
@@ -191,6 +202,7 @@ int main()
     TestOwnSpecKey();
     TestEffectiveTier();
     TestEligibility();
+    TestRecordedTier();
     TestLookup();
     std::printf("hire gear policy OK (%d checks)\n", checks);
     return 0;

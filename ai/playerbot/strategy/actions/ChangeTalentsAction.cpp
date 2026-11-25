@@ -9,6 +9,7 @@
 #include "../../../../runtime/policy/hire/HireRespecPolicy.h"
 #include "../../../../runtime/HireTierRequestPolicy.h"
 #include "../../../../runtime/HireProvisionService.h"
+#include "../../../../runtime/HireGearCache.h"
 #include "../../../../runtime/AltBotService.h"
 #include "../../../../runtime/AltBotPolicy.h"
 #include "../../../../runtime/policy/class/ShamanTankKitPolicy.h"
@@ -182,7 +183,11 @@ bool ChangeTalentsAction::Execute(Event& event)
         {
             PlayerbotFactory gear(bot, bot->GetLevel());
             if (refit == TortoiseBots::GearRefit::PoolWithCap)
+            {
                 gear.AutogearOwned(ITEM_QUALITY_EPIC, gearMode.ilvlCap);
+                TortoiseBots::BotGearService::UnequipAboveCapWorn(bot, gearMode.ilvlCap);
+                bot->SaveToDB();
+            }
             else
             {
                 gear.UsePoolGearCap();
@@ -278,7 +283,10 @@ void ChangeTalentsAction::RespecHireGearKit(Player* bot, std::ostringstream& out
         return;
     uint8_t cls = bot->GetClass();
     uint8_t tier = mode.tier;
-    if (!TortoiseBots::HireGearTierEligible(bot->GetLevel(), sPlayerbotAIConfig.hireGearTiersEnabled, tier))
+    // A recorded pin refits even when tiers are switched off: the switch
+    // gates new hires and new `.bot gear` pins, not a kit the bot already
+    // wears.
+    if (!TortoiseBots::RecordedHireGearTierUsable(bot->GetLevel(), tier))
         return;
     // New build's role first: the premade filter in getPremadePaths and the
     // strategy rebuild below must agree. Druid feral reports both roles, so
@@ -302,8 +310,21 @@ void ChangeTalentsAction::RespecHireGearKit(Player* bot, std::ostringstream& out
     char const* specKey = TortoiseBots::ResolveHireGearSpecKey(cls, specIndex, role);
     if (!specKey)
         return;
-    if (TortoiseBots::HireProvisionService::EquipHireGearSet(bot, ai, cls, specKey, bot->GetRace(), tier, mode.ilvlCap))
+    bool const hasKit = TortoiseBots::HireGearCache::Instance().HasSetFor(cls, specKey, tier);
+    // A slot the new spec's tier kit has nothing under the cap for takes a
+    // spec-appropriate under-cap piece instead of the old spec's gear (or an
+    // empty hand), exactly as the `.bot gear` pass backfills before its kit.
+    // No set for the new spec keeps the kit, so it does not backfill.
+    if (hasKit && mode.ilvlCap)
     {
+        PlayerbotFactory backfill(bot, bot->GetLevel());
+        backfill.AutogearOwned(ITEM_QUALITY_EPIC, mode.ilvlCap);
+    }
+    if (hasKit && TortoiseBots::HireProvisionService::EquipHireGearSet(bot, ai, cls, specKey, bot->GetRace(), tier, mode.ilvlCap))
+    {
+        // The kit may have skipped above-cap rows; the pass still ends with
+        // nothing worn above the cap, like `.bot gear`.
+        TortoiseBots::BotGearService::UnequipAboveCapWorn(bot, mode.ilvlCap);
         bot->SaveToDB();
         ai->UpdateTalentSpec();
         ai->ResetStrategies();

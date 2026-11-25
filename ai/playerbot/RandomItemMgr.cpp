@@ -17,6 +17,8 @@
 #include "policy/gear/FeralSpecPolicy.h"
 #include "../../runtime/policy/provision/AmmoCachePolicy.h"
 
+#include <initializer_list>
+
 char * strstri (const char* str1, const char* str2);
 
 namespace
@@ -470,27 +472,72 @@ bool RandomItemMgr::CanEquipArmor(uint8 clazz, uint8 spec, uint32 level, ItemPro
     //return CheckItemStats(clazz, sp, ap, tank);
 }
 
-bool RandomItemMgr::ShouldEquipWeaponForSpec(Player const* bot, uint8 playerclass, uint8 spec, ItemPrototype const* proto, bool canDualWield)
+namespace
 {
-    EquipmentSlots slot_mh = EQUIPMENT_SLOT_START;
-    EquipmentSlots slot_oh = EQUIPMENT_SLOT_START;
-    EquipmentSlots slot_rh = EQUIPMENT_SLOT_START;
-    for (std::map<EquipmentSlots, std::set<InventoryType> >::iterator i = viableSlots.begin(); i != viableSlots.end(); ++i)
+// One slot's spec weapon subclasses as a bitmask over ItemSubclassWeapon /
+// ItemSubclassArmor. This runs for every candidate of a gear pass, so the
+// sets must stay off the heap; the old per-call std::unordered_set rebuilds
+// showed up in the seed loops.
+struct WeaponSubclassMask
+{
+    uint32_t mask = 0;
+
+    WeaponSubclassMask() = default;
+    WeaponSubclassMask(std::initializer_list<uint32_t> subclasses)
     {
-        std::set<InventoryType> slots = viableSlots[(EquipmentSlots)i->first];
-        if (slots.find((InventoryType)proto->InventoryType) != slots.end())
-        {
-            if (i->first == EQUIPMENT_SLOT_MAINHAND)
-                slot_mh = i->first;
-            if (i->first == EQUIPMENT_SLOT_OFFHAND)
-                slot_oh = i->first;
-            if (i->first == EQUIPMENT_SLOT_RANGED)
-                slot_rh = i->first;
-        }
+        for (uint32_t subclass : subclasses)
+            mask |= 1u << subclass;
     }
 
-    if (slot_mh == EQUIPMENT_SLOT_START && slot_oh == EQUIPMENT_SLOT_START && slot_rh == EQUIPMENT_SLOT_START)
+    void insert(uint32_t subclass) { mask |= 1u << subclass; }
+    bool contains(uint32_t subclass) const { return (mask & (1u << subclass)) != 0; }
+};
+}
+
+bool RandomItemMgr::ShouldEquipWeaponForSpecInSlot(Player const* bot, uint8 playerclass, uint8 spec, ItemPrototype const* proto, uint8 slot, bool canDualWield)
+{
+    if (!proto)
         return false;
+
+    // Which weapon slots this prototype can occupy (inventory type only).
+    bool fitsMainHand = false;
+    bool fitsOffHand = false;
+    bool fitsRanged = false;
+    for (std::map<EquipmentSlots, std::set<InventoryType> >::const_iterator i = viableSlots.begin(); i != viableSlots.end(); ++i)
+    {
+        if (i->second.find((InventoryType)proto->InventoryType) == i->second.end())
+            continue;
+        if (i->first == EQUIPMENT_SLOT_MAINHAND)
+            fitsMainHand = true;
+        else if (i->first == EQUIPMENT_SLOT_OFFHAND)
+            fitsOffHand = true;
+        else if (i->first == EQUIPMENT_SLOT_RANGED)
+            fitsRanged = true;
+    }
+
+    if (slot == EQUIPMENT_SLOT_MAINHAND)
+    {
+        if (!fitsMainHand)
+            return false;
+    }
+    else if (slot == EQUIPMENT_SLOT_OFFHAND)
+    {
+        if (!fitsOffHand)
+            return false;
+    }
+    else if (slot == EQUIPMENT_SLOT_RANGED)
+    {
+        if (!fitsRanged)
+            return false;
+    }
+    else
+    {
+        // Any weapon slot, or a slot no weapon can occupy.
+        if (slot != EQUIPMENT_SLOT_END)
+            return false;
+        if (!fitsMainHand && !fitsOffHand && !fitsRanged)
+            return false;
+    }
 
     if (!spec)
         spec = static_cast<uint8>(GetFallbackSpecId(playerclass));
@@ -506,9 +553,9 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(Player const* bot, uint8 playerclas
     // where its class can wield one. Hunter and enhancement shaman already list
     // theirs, and rogue cannot use any two-hander at all (CanUseItem refuses
     // it), so fury is the only set that changes below.
-    std::unordered_set<uint32> mh_weapons;
-    std::unordered_set<uint32> oh_weapons;
-    std::unordered_set<uint32> r_weapons;
+    WeaponSubclassMask mh_weapons;
+    WeaponSubclassMask oh_weapons;
+    WeaponSubclassMask r_weapons;
 
     switch (playerclass)
     {
@@ -700,20 +747,24 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(Player const* bot, uint8 playerclas
     }
     }
 
-    if (slot_mh == EQUIPMENT_SLOT_MAINHAND)
-    {
-        return mh_weapons.find(proto->SubClass) != mh_weapons.end();
-    }
-    if (slot_oh == EQUIPMENT_SLOT_OFFHAND)
-    {
-        return oh_weapons.find(proto->SubClass) != oh_weapons.end();
-    }
-    if (slot_rh == EQUIPMENT_SLOT_RANGED)
-    {
-        return r_weapons.find(proto->SubClass) != r_weapons.end();
-    }
+    if (slot == EQUIPMENT_SLOT_MAINHAND)
+        return mh_weapons.contains(proto->SubClass);
+    if (slot == EQUIPMENT_SLOT_OFFHAND)
+        return oh_weapons.contains(proto->SubClass);
+    if (slot == EQUIPMENT_SLOT_RANGED)
+        return r_weapons.contains(proto->SubClass);
 
-    return false;
+    // Any weapon slot: the first slot the prototype fits decides, as before.
+    if (fitsMainHand)
+        return mh_weapons.contains(proto->SubClass);
+    if (fitsOffHand)
+        return oh_weapons.contains(proto->SubClass);
+    return r_weapons.contains(proto->SubClass);
+}
+
+bool RandomItemMgr::ShouldEquipWeaponForSpec(Player const* bot, uint8 playerclass, uint8 spec, ItemPrototype const* proto, bool canDualWield)
+{
+    return ShouldEquipWeaponForSpecInSlot(bot, playerclass, spec, proto, EQUIPMENT_SLOT_END, canDualWield);
 }
 
 bool RandomItemMgr::ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, ItemPrototype const* proto, bool canDualWield)
@@ -723,21 +774,24 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, Item
 
 bool RandomItemMgr::ShouldEquipWeaponForSlot(Player const* bot, uint8 playerclass, uint8 spec, ItemPrototype const* proto, uint8 slot, bool canDualWield)
 {
-    // Shield specs and dual-wield/slot-constrained classes have a slot-aware
-    // policy; every other class keeps the plain any-slot answer (fail-open).
-    if (playerclass != CLASS_WARRIOR && playerclass != CLASS_PALADIN && playerclass != CLASS_SHAMAN && playerclass != CLASS_HUNTER)
-        return ShouldEquipWeaponForSpec(bot, playerclass, spec, proto, canDualWield);
-
     if (!spec)
         spec = static_cast<uint8>(GetFallbackSpecId(playerclass));
 
     if (!m_weightScales[spec].info.id)
         return false;
 
+    // Shield specs and slot-constrained classes have a slot-aware policy;
+    // every other class asks the same spec sets for the requested slot.
+    std::string const& specName = m_weightScales[spec].info.name;
+    bool const policySpec = playerclass == CLASS_WARRIOR || playerclass == CLASS_PALADIN ||
+        playerclass == CLASS_HUNTER ||
+        (playerclass == CLASS_SHAMAN && (specName == "shamantank" || specName == "enhance"));
+    if (!policySpec)
+        return ShouldEquipWeaponForSpecInSlot(bot, playerclass, spec, proto, slot, canDualWield);
+
     // The policy header owns the sets (single source of truth with the
     // standalone test); the scale id maps back to the spec name it loaded.
-    // Non-tank shaman specs stay fail-open inside the policy.
-    return ai::SpecWeaponAllowed(playerclass, m_weightScales[spec].info.name,
+    return ai::SpecWeaponAllowed(playerclass, specName,
         proto->Class, proto->SubClass, slot, canDualWield);
 }
 

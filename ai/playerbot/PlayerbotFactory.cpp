@@ -1633,10 +1633,11 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
     bool const keepsWornGear = playerUpgrade || (ai && ai->IsOwnedBot());
 
     // One slot-rule set for every gear path: the same answer the equip audit
-    // and the vendor buy use (runtime/policy/gear/SpecWeaponPolicy.h through
-    // RandomItemMgr). A shield tank takes a one-hander plus a shield and never
-    // a second one-hander in the off hand; a two-hand spec leaves the off hand
-    // empty; casters/hunters get what their spec can actually wield.
+    // and the vendor buy use (ai/playerbot/policy/gear/SpecWeaponPolicy.h
+    // through RandomItemMgr). A shield tank takes a one-hander plus a shield
+    // and never a second one-hander in the off hand; a two-hand spec leaves
+    // the off hand empty; casters/hunters get what their spec can actually
+    // wield.
     auto weaponSlotAllows = [&](uint8 slot, ItemPrototype const* proto)
     {
         if (slot != EQUIPMENT_SLOT_MAINHAND && slot != EQUIPMENT_SLOT_OFFHAND &&
@@ -2013,10 +2014,10 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool syncWithMaster, bool
                     // Never two equipped copies of a unique-equipped item,
                     // counting what is already worn: a unique ring in the
                     // first finger keeps it out of the second (and a unique
-                    // trinket out of the second trinket slot).
-                    if (!TortoiseBots::AutogearUniqueAllowed(
-                            (proto->Flags & ITEM_FLAG_UNIQUE_EQUIPPED) != 0,
-                            CountEquippedCopies(bot, newItemId)))
+                    // trinket out of the second trinket slot). Only a unique
+                    // item needs the equipped scan.
+                    if ((proto->Flags & ITEM_FLAG_UNIQUE_EQUIPPED) != 0 &&
+                        !TortoiseBots::AutogearUniqueAllowed(true, CountEquippedCopies(bot, newItemId)))
                         continue;
                     // Spec slot rules for the weapons (shared with kit and
                     // audit; see weaponSlotAllows above).
