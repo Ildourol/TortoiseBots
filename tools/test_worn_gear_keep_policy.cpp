@@ -4,7 +4,8 @@
 //  - cosmetic slots (shirt, tabard) keep a worn piece, an empty one is filled,
 //  - a worn piece the item-level cap allows is kept on a tie or a worse score,
 //  - a strictly better candidate always wins (real upgrades still land),
-//  - a worn piece above the cap is still replaced by an under-cap candidate.
+//  - above the cap the old rule holds (a better candidate wins, stat-less
+//    worn pieces are replaced).
 //
 // Build and run (from the repo root):
 //   g++ -std=c++17 -Wall -Wextra tools/test_worn_gear_keep_policy.cpp -o /tmp/test_worn_gear
