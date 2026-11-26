@@ -162,6 +162,16 @@ std::vector<uint32_t> ClaimLifecycle::GetClaimedBotsForPlayer(uint32_t ownerPlay
     return result;
 }
 
+std::vector<uint32_t> ClaimLifecycle::GetAllClaimedBots() const
+{
+    std::vector<uint32_t> result;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    result.reserve(m_claimedByBotGuid.size());
+    for (auto const& pair : m_claimedByBotGuid)
+        result.push_back(pair.first);
+    return result;
+}
+
 std::vector<uint32_t> ClaimLifecycle::GetClaimedBotsForGuild(uint32_t guildId) const
 {
     std::vector<uint32_t> result;

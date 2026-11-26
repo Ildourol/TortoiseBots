@@ -16,6 +16,8 @@ Pool bots are autonomous characters that level, wander, run dungeons, and trade.
 
 For pool size and creation settings, see [World population settings](settings/world-population.md).
 
+Claimed guild bots (pool bots that accepted your guild invite) stay available: after a restart they log in first, together with pinned bots, within the pool size, and the pool never logs them out while they are online. Bots with an unfinished guild order log in before them.
+
 ## The Managed Pool Registry
 
 An account counts as a pool account **only** if it has a record in the registry table. The registry is the character-database table that tracks managed pool accounts.

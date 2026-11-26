@@ -40,6 +40,7 @@ public:
 
     std::vector<uint32_t> GetClaimedBotsForPlayer(uint32_t ownerPlayerGuidLow) const;
     std::vector<uint32_t> GetClaimedBotsForGuild(uint32_t guildId) const;
+    std::vector<uint32_t> GetAllClaimedBots() const;
 
     void OnGuildDelMember(uint32_t botGuidLow);
     void OnGuildDisband(uint32_t guildId);

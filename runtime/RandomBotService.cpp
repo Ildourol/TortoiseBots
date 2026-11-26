@@ -1564,10 +1564,17 @@ void RandomBotService::MaintainOnlinePool()
     // before the normal order, within the same pool and queue budget.
     QueueOrderBots(target, perInterval, online, added);
 
-    // Pinned bots follow the order pass, within the cap, not additive beyond it.
-    if (!m_pinnedGuids.empty())
+    // Pinned and claimed bots follow the order pass, within the cap, not
+    // additive beyond it. Claimed guild bots belong to a player and must come
+    // back after a restart even when the pool is small; the player's guild
+    // buttons only reach bots that are already online.
+    std::vector<uint32> prioritized(m_pinnedGuids.begin(), m_pinnedGuids.end());
+    for (uint32 claimedGuid : ClaimLifecycle::Instance().GetAllClaimedBots())
+        if (!IsPinnedGuid(claimedGuid))
+            prioritized.push_back(claimedGuid);
+    if (!prioritized.empty())
     {
-        for (uint32 pinnedGuid : m_pinnedGuids)
+        for (uint32 pinnedGuid : prioritized)
         {
             if (online >= target || added >= perInterval)
                 break;
@@ -1601,7 +1608,7 @@ void RandomBotService::MaintainOnlinePool()
             {
                 ++online;
                 ++added;
-                TB_LOG_DETAIL("TortoiseBots: pinned random bot %s queued on account %u (prioritized)",
+                TB_LOG_DETAIL("TortoiseBots: pinned or claimed random bot %s queued on account %u (prioritized)",
                     pinnedCandidate->characterGuid.GetString().c_str(), pinnedCandidate->accountId);
             }
             else
