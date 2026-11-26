@@ -185,7 +185,8 @@ inline double SpellHitCap(uint32_t botLevel, uint32_t bossLevel = kBossLevel)
         : kSpellHitBase - (levelDiff - 2) * kSpellHitPerLevelPastTwo;
     if (hit < kTurtleMinSpellHitChance)
         hit = kTurtleMinSpellHitChance;
-    double miss = 100.0 - hit;
+    // The core caps spell hit at 99%, so the last 1% of miss can never be removed.
+    double miss = 100.0 - hit - 1.0;
     return miss < 0.0 ? 0.0 : miss;
 }
 

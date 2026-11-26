@@ -118,12 +118,12 @@ static void TestMeleeCap()
 static void TestSpellCap()
 {
     // 94 - (63-60-2)*11 = 83% hit, 17% miss at level 60.
-    CHECK(SpellHitCap(60) > 16.99 && SpellHitCap(60) < 17.01);
+    CHECK(SpellHitCap(60) > 15.99 && SpellHitCap(60) < 16.01);
     // Level 55: 94 - (8-2)*11 = 28% hit, below Turtle's 33% floor, so 67%.
-    CHECK(SpellHitCap(55) > 66.99 && SpellHitCap(55) < 67.01);
+    CHECK(SpellHitCap(55) > 65.99 && SpellHitCap(55) < 66.01);
     // Level 63 is outside play, but the formula stays monotonic and clamped.
-    CHECK(SpellHitCap(63) > 3.99 && SpellHitCap(63) < 4.01);
-    CHECK(SpellHitCap(1) <= 67.0); // Turtle floor: never below 33% hit
+    CHECK(SpellHitCap(63) > 2.99 && SpellHitCap(63) < 3.01);
+    CHECK(SpellHitCap(1) <= 66.0); // Turtle floor: never below 33% hit
 }
 
 static void TestDefenseCap()
@@ -189,7 +189,7 @@ static void TestHitCapDispatch()
 {
     CHECK(HitCap(HitKind::Melee, 300.0, 60) > 7.99 && HitCap(HitKind::Melee, 300.0, 60) < 8.01);
     CHECK(HitCap(HitKind::Ranged, 300.0, 60) > 7.99 && HitCap(HitKind::Ranged, 300.0, 60) < 8.01);
-    CHECK(HitCap(HitKind::Spell, 0.0, 60) > 16.99 && HitCap(HitKind::Spell, 0.0, 60) < 17.01);
+    CHECK(HitCap(HitKind::Spell, 0.0, 60) > 15.99 && HitCap(HitKind::Spell, 0.0, 60) < 16.01);
     CHECK(HitCap(HitKind::None, 300.0, 60) == 0.0);
 }
 
