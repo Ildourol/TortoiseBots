@@ -24,6 +24,7 @@
 #include "AltBotService.h"
 // Issue #872: kind labels (pool/hired/claimed/alt/companion/player).
 #include "BotKindPolicy.h"
+#include "ArmoryStats.h"
 #include "HireLifecycle.h"
 #include "ClaimLifecycle.h"
 #include "../ai/playerbot/PlayerbotAI.h"
@@ -1406,18 +1407,8 @@ void ObservabilityEmitter::Update(uint32 diff)
 
 void ObservabilityEmitter::WriteArmoryStats(Player* bot)
 {
-    // Spell power: the lowest magic school is the shared base, the rest is a
-    // per-school bonus on top (the dashboard renders base + bonus).
-    int32 schoolDmg[MAX_SPELL_SCHOOL];
-    int32 baseDmg = 0;
-    float spellCrit = 0.0f;
-    for (int school = SPELL_SCHOOL_HOLY; school < MAX_SPELL_SCHOOL; ++school)
-    {
-        schoolDmg[school] = bot->SpellBaseDamageBonusDone(SpellSchoolMask(1 << school));
-        baseDmg = school == SPELL_SCHOOL_HOLY ? schoolDmg[school] : std::min(baseDmg, schoolDmg[school]);
-        // Talents raise single schools; show the best one.
-        spellCrit = std::max(spellCrit, bot->GetSpellCritPercent(SpellSchools(school)));
-    }
+    Armory::Stats const stats = Armory::ReadStats(bot);
+    int32 const baseDmg = stats.SpellPower();
 
     // Core keeps rage x10; store display units like the telemetry snapshot.
     uint32 maxPower[MAX_POWERS];
@@ -1436,23 +1427,22 @@ void ObservabilityEmitter::WriteArmoryStats(Player* bot)
         "VALUES (%u, %u, %u, %u, %u, %u, %u, %f, %f, %f, %f, %f, %d, %d, %d, %d, %d, %d, %d, "
         "%d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %d)",
         bot->GetGUIDLow(), bot->GetMaxHealth(), maxPower[0], maxPower[1], maxPower[2], maxPower[3], maxPower[4],
-        bot->GetStat(STAT_STRENGTH), bot->GetStat(STAT_AGILITY), bot->GetStat(STAT_STAMINA),
-        bot->GetStat(STAT_INTELLECT), bot->GetStat(STAT_SPIRIT), bot->GetArmor(),
-        bot->GetResistance(SPELL_SCHOOL_HOLY), bot->GetResistance(SPELL_SCHOOL_FIRE), bot->GetResistance(SPELL_SCHOOL_NATURE),
-        bot->GetResistance(SPELL_SCHOOL_FROST), bot->GetResistance(SPELL_SCHOOL_SHADOW), bot->GetResistance(SPELL_SCHOOL_ARCANE),
-        baseDmg, schoolDmg[SPELL_SCHOOL_HOLY] - baseDmg, schoolDmg[SPELL_SCHOOL_FIRE] - baseDmg,
-        schoolDmg[SPELL_SCHOOL_NATURE] - baseDmg, schoolDmg[SPELL_SCHOOL_FROST] - baseDmg,
-        schoolDmg[SPELL_SCHOOL_SHADOW] - baseDmg, schoolDmg[SPELL_SCHOOL_ARCANE] - baseDmg,
-        bot->SpellBaseHealingBonusDone(SPELL_SCHOOL_MASK_HOLY),
+        bot->GetStat(STAT_STRENGTH), bot->GetStat(STAT_AGILITY), stats.stamina,
+        stats.intellect, bot->GetStat(STAT_SPIRIT), stats.armor,
+        bot->GetResistance(SPELL_SCHOOL_HOLY), stats.fireResist, stats.natureResist,
+        stats.frostResist, stats.shadowResist, stats.arcaneResist,
+        baseDmg, stats.spellDamage[SPELL_SCHOOL_HOLY] - baseDmg, stats.spellDamage[SPELL_SCHOOL_FIRE] - baseDmg,
+        stats.spellDamage[SPELL_SCHOOL_NATURE] - baseDmg, stats.spellDamage[SPELL_SCHOOL_FROST] - baseDmg,
+        stats.spellDamage[SPELL_SCHOOL_SHADOW] - baseDmg, stats.spellDamage[SPELL_SCHOOL_ARCANE] - baseDmg,
+        stats.healingPower,
         bot->GetFloatValue(PLAYER_BLOCK_PERCENTAGE), bot->GetFloatValue(PLAYER_DODGE_PERCENTAGE),
-        bot->GetFloatValue(PLAYER_PARRY_PERCENTAGE), bot->GetFloatValue(PLAYER_CRIT_PERCENTAGE),
-        bot->GetFloatValue(PLAYER_RANGED_CRIT_PERCENTAGE), spellCrit,
-        bot->GetTotalAttackPowerValue(BASE_ATTACK), hasRanged ? bot->GetTotalAttackPowerValue(RANGED_ATTACK) : 0.0f,
+        bot->GetFloatValue(PLAYER_PARRY_PERCENTAGE), stats.crit,
+        bot->GetFloatValue(PLAYER_RANGED_CRIT_PERCENTAGE), stats.spellCrit,
+        stats.attackPower, hasRanged ? bot->GetTotalAttackPowerValue(RANGED_ATTACK) : 0.0f,
         bot->GetFloatValue(UNIT_FIELD_MINDAMAGE), bot->GetFloatValue(UNIT_FIELD_MAXDAMAGE),
         bot->GetFloatValue(UNIT_FIELD_MINRANGEDDAMAGE), bot->GetFloatValue(UNIT_FIELD_MAXRANGEDDAMAGE),
         bot->GetAttackTime(BASE_ATTACK) / 1000.0f, hasRanged ? bot->GetAttackTime(RANGED_ATTACK) / 1000.0f : 0.0f,
-        bot->m_modMeleeHitChance, bot->m_modRangedHitChance, bot->m_modSpellHitChance,
-        bot->GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_POWER_REGEN, POWER_MANA));
+        stats.meleeHit, stats.rangedHit, stats.spellHit, stats.manaRegen);
 }
 
 void ObservabilityEmitter::EmitSnapshotCycle(std::vector<Player*> const& activeBots, std::vector<Player*> const& onlinePlayers,

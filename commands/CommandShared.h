@@ -27,6 +27,18 @@ TortoiseBots::RemoteCommander::FeatureGates CurrentCommanderGates();
 Player* Requester(ChatHandler* handler);
 bool ResolveOwnedBot(ChatHandler* handler, char const* args, Player*& bot, BotRecord*& record, std::string& name);
 
+// Info.cpp: the account roster behind `.bot roster`, also used by the Armory
+// stream so both answer over the same characters; and the claimed snapshot
+// (claimed guild bots first, then the requester's autonomous alts in the same
+// guild, `claimedCount` marking the split).
+struct ClaimedRosterSnapshot
+{
+    std::vector<uint32> guids;
+    size_t claimedCount = 0;
+};
+std::vector<OwnedCharacter> RosterOwnedCharacters(Player* requester);
+ClaimedRosterSnapshot BuildClaimedRoster(Player* requester, std::vector<OwnedCharacter> const& rows);
+
 // TBM protocol lines: pipe-safe escaping and the shared action ack/err
 // answers (the commander's order log notes every reply).
 // Professions.cpp: one bot's orderable craft recipes matching the search
