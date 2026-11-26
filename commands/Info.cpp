@@ -395,15 +395,10 @@ static char const* AddonCommandChannel(Player* requester)
     }
     return "party";
 }
-bool HandleRoster(ChatHandler* handler, char const* /*args*/)
+std::vector<OwnedCharacter> RosterOwnedCharacters(Player* requester)
 {
-    Player* requester = Requester(handler);
     if (!requester || !requester->GetSession())
-    {
-        handler->PSendSysMessage("TBM:ROSTER_ERROR|not-in-game|You must be in-game.");
-        handler->PSendSysMessage("You must be in-game to request a bot roster.");
-        return true;
-    }
+        return {};
 
     uint32 accountId = requester->GetSession()->GetAccountId();
     // Backfill runtime records created before the durable roster migration.
@@ -422,8 +417,7 @@ bool HandleRoster(ChatHandler* handler, char const* /*args*/)
                 accountId, record->accountId, bot->GetObjectGuid(), record->masterGuid);
     }
 
-    std::vector<OwnedCharacter> rows = BotManager::Instance().GetOwnedCharacters(
-        requester->GetSession()->GetAccountId());
+    std::vector<OwnedCharacter> rows = BotManager::Instance().GetOwnedCharacters(accountId);
     for (auto it = rows.begin(); it != rows.end(); )
     {
         // The roster lists the player's own characters. Hired companions live on
@@ -437,6 +431,44 @@ bool HandleRoster(ChatHandler* handler, char const* /*args*/)
         else
             ++it;
     }
+    return rows;
+}
+
+ClaimedRosterSnapshot BuildClaimedRoster(Player* requester, std::vector<OwnedCharacter> const& rows)
+{
+    ClaimedRosterSnapshot snapshot;
+    if (!requester)
+        return snapshot;
+
+    snapshot.guids = ClaimLifecycle::Instance().GetClaimedBotsForPlayer(requester->GetGUIDLow());
+    snapshot.claimedCount = snapshot.guids.size();
+
+    // Owned alts playing on their own in the player's guild take guild orders
+    // too, so they follow the claimed rows and share their snapshot.
+    if (!requester->GetGuildId())
+        return snapshot;
+    for (OwnedCharacter const& row : rows)
+    {
+        if (!AltBotService::Instance().IsAutonomous(row.characterGuid))
+            continue;
+        Player* alt = sObjectAccessor.FindPlayer(row.characterGuid);
+        if (alt && alt->GetGuildId() == requester->GetGuildId())
+            snapshot.guids.push_back(row.characterGuid.GetCounter());
+    }
+    return snapshot;
+}
+
+bool HandleRoster(ChatHandler* handler, char const* /*args*/)
+{
+    Player* requester = Requester(handler);
+    if (!requester || !requester->GetSession())
+    {
+        handler->PSendSysMessage("TBM:ROSTER_ERROR|not-in-game|You must be in-game.");
+        handler->PSendSysMessage("You must be in-game to request a bot roster.");
+        return true;
+    }
+
+    std::vector<OwnedCharacter> rows = RosterOwnedCharacters(requester);
     handler->PSendSysMessage("TBM:ROSTER_BEGIN|%u", static_cast<uint32>(rows.size()));
     for (OwnedCharacter const& row : rows)
     {
@@ -504,24 +536,12 @@ bool HandleRoster(ChatHandler* handler, char const* /*args*/)
             ProtocolSafe(assignment.second).c_str());
     handler->PSendSysMessage("TBM:CC_ASSIGN_END");
     // Issue #489: Claimed guild bots snapshot for the player's raid roster
-    std::vector<uint32> claimedGuids = ClaimLifecycle::Instance().GetClaimedBotsForPlayer(requester->GetGUIDLow());
-    // Owned alts playing on their own in the player's guild take guild orders
-    // too, so they follow the claimed rows, marked by the last field.
-    size_t const claimedCount = claimedGuids.size();
-    if (requester->GetGuildId())
-        for (OwnedCharacter const& row : rows)
-        {
-            if (!AltBotService::Instance().IsAutonomous(row.characterGuid))
-                continue;
-            Player* alt = sObjectAccessor.FindPlayer(row.characterGuid);
-            if (alt && alt->GetGuildId() == requester->GetGuildId())
-                claimedGuids.push_back(row.characterGuid.GetCounter());
-        }
-    handler->PSendSysMessage("TBM:CLAIMED_BEGIN|%u", static_cast<uint32>(claimedGuids.size()));
-    for (size_t index = 0; index < claimedGuids.size(); ++index)
+    ClaimedRosterSnapshot const claimed = BuildClaimedRoster(requester, rows);
+    handler->PSendSysMessage("TBM:CLAIMED_BEGIN|%u", static_cast<uint32>(claimed.guids.size()));
+    for (size_t index = 0; index < claimed.guids.size(); ++index)
     {
-        uint32 botGuidLow = claimedGuids[index];
-        uint32 const isAlt = index >= claimedCount ? 1u : 0u;
+        uint32 botGuidLow = claimed.guids[index];
+        uint32 const isAlt = index >= claimed.claimedCount ? 1u : 0u;
         ObjectGuid botGuid(HIGHGUID_PLAYER, botGuidLow);
         Player* player = sObjectAccessor.FindPlayer(botGuid);
         BotRecord* record = BotManager::Instance().FindBot(botGuid);
@@ -613,12 +633,14 @@ bool HandleRoster(ChatHandler* handler, char const* /*args*/)
     // choice = ".bot choice" and its TBM:CHOICE lines;
     // focus-mark = ".bot focus" and the focus= BOTSTATE field;
     // use-object = ".bot use" / ".bot action use" nearby object interaction;
+    // armory = ".bot armory" and its TBM:ARMORY rows (the addon's Armory tab
+    // and Gear tab extras);
     // dungeon-run = ".bot run" and its TBM:RUN status lines,
     // only while the dungeon run is enabled. Old addons ignore unknown lines and items.
     bool const dungeonRun = RemoteCommander::RunSurfaceOn(CurrentCommanderGates());
     bool const guildOrders = ai::GuildOrderSourcesReady();
     bool const playerBuyOff = guildOrders && !sPlayerbotAIConfig.guildOrderPlayerBuy;
-    handler->PSendSysMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster,loot-log,downtime,professions,blessing,blessing-player,engage,choice,focus-mark,use-object%s%s%s",
+    handler->PSendSysMessage("TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster,loot-log,downtime,professions,blessing,blessing-player,engage,choice,focus-mark,use-object,armory%s%s%s",
         guildOrders ? ",guild-orders,guild-order-steps" : "", playerBuyOff ? ",guild-order-nobuy" : "",
         dungeonRun ? ",dungeon-run" : "");
     // Transport trailer: the addon sends its next commands over the addon

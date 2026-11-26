@@ -164,6 +164,7 @@ The table below lists all primary commands and links to their authoritative docu
 | [`.bot features`](bot-panel.md#bot-features) | Inspection | Lists the server's player-facing switches (the addon's Info window). |
 | [`.bot help`](bot-panel.md#bot-help) | Inspection | Prints bot system version header. |
 | [`.bot inv`](bot-panel.md#bot-inv) | Bot Panel | Emits inventory, equipped gear, and money details. |
+| [`.bot armory`](bot-panel.md#bot-armory) | Bot Panel | Emits spec, hit/defense readiness, stats and per-slot gear/enchant gaps for claimed guild bots and party bots. |
 | [`.bot professions`](bot-panel.md#bot-professions) | Bot Panel | Emits profession skill values and known/learnable recipes. |
 | [`.bot lootlog`](bot-panel.md#bot-lootlog) | Bot Panel | Replays the last day of loot rows for controllable party bots. |
 | [`.bot item <Name> trade`](bot-panel.md#bot-item-trade) | Bot Panel | Opens direct trade window with a bot. |
