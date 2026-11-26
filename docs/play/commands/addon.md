@@ -44,9 +44,16 @@ The interface is divided into functional tabs designed for different stages of g
 - **Crowd control:** Assign crowd control marks to capable party bots.
 - **Toggles:** Party-wide switches for AoE, corpse looting, consumable mimicry, and smart auto crowd control.
 
+### Armory Tab
+
+- **Readiness list:** Lists your claimed guild bots and the party bots you control (owned alts and hires) with the spec and role each plays, hit against the goal for an opponent three levels higher (a level-63 boss at 60), defense for tanks, and a strip of equipped slots.
+- **Missing gear:** A red dot marks a slot that is empty or lacks its permanent enchant; the strip also counts the problems per bot. **Show: Guild bots** lists the claimed set, **This raid** only the bots in your group; **Problems only** filters to bots under a cap or with missing gear.
+- **Spec, search and refresh:** Search and Clear filter by name, and Refresh requests a fresh `.bot armory` snapshot. Clicking a row opens that bot's panel.
+- **Capability-gated:** The tab exists only while the server advertises the `armory` capability in `TBM:CAPS`; the bot panel extras below follow the same switch.
+
 ### Bot Panel Tab
 
-- **Gear:** View equipped items and durability on your bots.
+- **Gear:** View equipped items and durability on your bots. A red dot marks a slot that is empty or missing its permanent enchant, one red line under the model lists them, and a **Stats** button swaps the model for a sheet with hit and defense goals, the main stats and the five resistances.
 - **Bags:** Browse carried items, spot upgrades, and equip or unequip them remotely.
 - **Behaviors:** Toggle threat backoff, mana saving, offensive cooldowns, and potion use.
 - **Totems:** For shaman companions, pin totem choices per element and trigger immediate drops.
@@ -86,7 +93,10 @@ The module transmits structured protocol lines (prefixed with `TBM:`) to keep th
 | `TBM:BOTSTATE\|<bot>\|<fields>` | Emits bot movement mode, the behavior toggles, the sap switch, the spec strategies and the focus mark. |
 | `TBM:CC_ASSIGN_BEGIN\|<n>` / `TBM:CC_ASSIGN_END` | Delimits active crowd control assignments. |
 | `TBM:CC_ASSIGN\|<bot>\|<mark>` | Emits a party bot's assigned CC raid mark. |
-| `TBM:CAPS\|<capabilities>` | Advertises server feature capabilities. Exact tokens: `pull-seconds,flee,inventory,behavior,claimed-roster,loot-log,downtime,professions,blessing,blessing-player,engage,choice,focus-mark,use-object`, plus `guild-orders,guild-order-steps` while the order source index is ready (`AiPlayerbot.AutoDoQuests = 1`), plus `guild-order-nobuy` while player Buy orders are refused (`AiPlayerbot.GuildOrderPlayerBuy = 0`), plus `dungeon-run` while the dungeon run is enabled (`AiPlayerbot.DungeonSelfClear = 1`). |
+| `TBM:ARMORY_BEGIN\|<n>` / `TBM:ARMORY_END\|<n>` | Delimits one armory snapshot from `.bot armory` (both carry the same row count, offline bots included). |
+| `TBM:ARMORY\|<name>\|<class>\|<level>\|<online>\|<inGroup>\|<role>\|<spec>\|<avgIlvl>\|<meleeHit>\|<rangedHit>\|<spellHit>\|<defense>\|<fire>+<nature>+<frost>+<shadow>+<arcane>\|<hitCap>\|<defCap>\|<stats>` | One bot's readiness row. `<role>` is `tank`, `healer`, `melee`, `ranged` or `caster`; `<spec>` the talent tree (`-` when unknown). Hits are the bonuses the core applies in its miss roll, `<hitCap>` the bonus the role needs against a level-63 boss (0 for healers), `<defCap>` 440 for tanks else 0. `<stats>` is `ap=..,crit=..,armor=..,sta=..,sp=..,heal=..,scrit=..,mp5=..,int=..`, or `-` offline. |
+| `TBM:ARMORY_EQ\|<name>\|<slot>:<itemId>:<enchantId>:<miss>:<quality>,...` | One online bot's equipment strip: slots `0`-`18` except shirt `3` and tabard `18`, in slot order. `<miss>` is `0` fine, `1` item present but no permanent enchant, `2` empty slot that should hold something. Neck/ring/trinket slots never report `1`; ranged does for hunters only; a two-hander in the main hand reports off hand as `0:0:0`. `<quality>` is the item quality (0-5), so items the client has not cached still get their colour. |
+| `TBM:CAPS\|<capabilities>` | Advertises server feature capabilities. Exact tokens: `pull-seconds,flee,inventory,behavior,claimed-roster,loot-log,downtime,professions,blessing,blessing-player,engage,choice,focus-mark,use-object,armory`, plus `guild-orders,guild-order-steps` while the order source index is ready (`AiPlayerbot.AutoDoQuests = 1`), plus `guild-order-nobuy` while player Buy orders are refused (`AiPlayerbot.GuildOrderPlayerBuy = 0`), plus `dungeon-run` while the dungeon run is enabled (`AiPlayerbot.DungeonSelfClear = 1`). |
 | `TBM:LOOT_BEGIN\|<n>\|<nextCursor>` / `TBM:LOOT_END\|<nextCursor>` | Delimits one page of loot history from `.bot lootlog`. |
 | `TBM:LOOT\|<ts>\|<bot>\|<event>\|<itemId>\|<item>\|<sourceType>\|<source>\|<quality>` | Emits one loot or roll row (item taken, money taken, or roll vote). |
 | `TBM:ORDER_BEGIN\|<n>` / `TBM:ORDER_END` | Delimits the guild order list from `.bot order list`. |
@@ -114,7 +124,8 @@ The module transmits structured protocol lines (prefixed with `TBM:`) to keep th
 
 ### Protocol Grammar & Semantics
 
-- **Capabilities (`TBM:CAPS`):** Emits `TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster,loot-log,downtime,professions,blessing,blessing-player,engage,choice,focus-mark,use-object`, with `,guild-orders,guild-order-steps` appended while the order source index is ready (travel tables loaded via `AiPlayerbot.AutoDoQuests = 1`), `,guild-order-nobuy` appended while player Buy orders are refused (`AiPlayerbot.GuildOrderPlayerBuy = 0`) and `,dungeon-run` appended while the dungeon run is enabled. (`mimic` is a behavior toggle, not a capability token).
+- **Capabilities (`TBM:CAPS`):** Emits `TBM:CAPS|pull-seconds,flee,inventory,behavior,claimed-roster,loot-log,downtime,professions,blessing,blessing-player,engage,choice,focus-mark,use-object,armory`, with `,guild-orders,guild-order-steps` appended while the order source index is ready (travel tables loaded via `AiPlayerbot.AutoDoQuests = 1`), `,guild-order-nobuy` appended while player Buy orders are refused (`AiPlayerbot.GuildOrderPlayerBuy = 0`) and `,dungeon-run` appended while the dungeon run is enabled. (`mimic` is a behavior toggle, not a capability token).
+- **Armory (`TBM:ARMORY`/`TBM:ARMORY_EQ`):** `.bot armory [<bot>]` answers over the claimed snapshot's bots plus the controllable party bots, deduplicated. The addon sends no caps of its own: it shows each row's hit value for its role beside `<hitCap>` and, for tanks, defense beside `<defCap>`. Enchantable slots come from the server's permanent-enchant candidate table, so belt buckles, librams and arcanums count on Turtle.
 - **Professions (`TBM:PROF`/`TBM:RECIPE`):** `.bot professions <bot>` lists the bot's professions with skill (`TBM:PROF`), the recipes it knows (`TBM:RECIPE`, with the skill steps each colour starts at and an order field: `ok` or the reason), and the recipes it could still learn at its current rank (`TBM:RECIPE_MISSING`, with the recipe item that teaches it or `0` for trainer-only).
 - **Loot history (`TBM:LOOT`):** `.bot lootlog [cursor]` replays loot and roll rows for every bot in your current group (owned alts, hired companions, and dungeon finder / random bots; or your own bots when ungrouped) from the last 24 hours, newest piece first, up to 40 rows per reply. A money row carries the copper amount as `<item>` and the corpse entry as `<itemId>`; an item row carries the item name, id and quality; a `LootRoll` row carries `<vote>:<itemId>:<reason>` as `<itemId>` and the item name as `<item>`. Send the returned `<nextCursor>` back for the next page; `expired` means the piece it pointed at was pruned, so start over without a cursor.
 - **Guild bot rank (`TBM:ORDER_ACCESS`):** Carries the guild's bot rank and what it reaches.

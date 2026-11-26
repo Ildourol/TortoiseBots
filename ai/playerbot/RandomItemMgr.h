@@ -231,6 +231,10 @@ class RandomItemMgr
         uint32 CalculateProcEnchantWeight(uint8 playerclass, uint8 spec, uint32 enchantId);
         // min_level of one candidate row (for the deterministic tie-break).
         uint8 GetBotEnchantMinLevel(uint32 spellId, uint8 slotId);
+        // One bit per equipment slot id that the shipped permanent-enchant
+        // candidate table has rows for. The Armory tab reads this mask instead
+        // of keeping its own list of enchantable slots.
+        uint32 GetPermanentEnchantSlotMask();
         uint32 CalculateRandomPropertyWeight(uint8 playerclass, uint8 spec, int32 randomPropertyId);
         uint32 CalculateStatWeight(uint8 playerclass, uint8 spec, ItemPrototype const* proto, ItemSpecType &itSpec);
         uint32 ItemStatWeight(Player* player, ItemQualifier& qualifier, PlayerbotAI* facade = nullptr);

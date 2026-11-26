@@ -4801,3 +4801,14 @@ uint8 RandomItemMgr::GetBotEnchantMinLevel(uint32 spellId, uint8 slotId)
             return candidate.minLevel;
     return 0;
 }
+
+uint32 RandomItemMgr::GetPermanentEnchantSlotMask()
+{
+    if (!botEnchantsLoaded)
+        LoadBotEnchantCandidates();
+    uint32 mask = 0;
+    for (auto const& candidate : botEnchantCandidates)
+        if (candidate.slotId < 32)
+            mask |= uint32(1) << candidate.slotId;
+    return mask;
+}
