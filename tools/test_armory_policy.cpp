@@ -131,6 +131,10 @@ static void TestDefenseCap()
     // 63*5 defense + 5% base crit / 0.04% = 440.
     CHECK(DefenseCritCap() == 440);
     CHECK(DefenseCritCap(60) == 425);
+    CHECK(TargetLevel(60) == 63);
+    CHECK(TargetLevel(59) == 62);
+    CHECK(SpellHitCap(59, TargetLevel(59)) > 15.99 && SpellHitCap(59, TargetLevel(59)) < 16.01);
+    CHECK(DefenseCritCap(TargetLevel(59)) == 435);
 }
 
 static void TestSpecRead()

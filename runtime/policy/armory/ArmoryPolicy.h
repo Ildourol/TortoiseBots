@@ -190,6 +190,13 @@ inline double SpellHitCap(uint32_t botLevel, uint32_t bossLevel = kBossLevel)
     return miss < 0.0 ? 0.0 : miss;
 }
 
+// The opponent a bot is measured against: three levels above it, which is a
+// level-63 boss at 60 and keeps the goals meaningful while levelling.
+inline uint32_t TargetLevel(uint32_t botLevel)
+{
+    return botLevel + 3;
+}
+
 // Defense skill that makes a level-63 boss unable to crit a tank.
 inline uint32_t DefenseCritCap(uint32_t bossLevel = kBossLevel)
 {

@@ -210,7 +210,7 @@ Emits structured protocol records:
 
 ### `.bot armory`
 
-Emits the Armory overview for your guild bots and party bots: the spec each bot plays, its hit bonus against the level-63 goal, tank defense against the crit-immunity goal, the stats sheet, and one strip entry per equipment slot that marks an empty slot or a missing permanent enchant.
+Emits the Armory overview for your guild bots and party bots: the spec each bot plays, its hit bonus against an opponent three levels higher (a level-63 boss at 60), tank defense against the crit-immunity goal, the stats sheet, and one strip entry per equipment slot that marks an empty slot or a missing permanent enchant.
 
 ```text
 .bot armory
@@ -226,11 +226,12 @@ Without a name it answers for the same set the claimed snapshot lists (claimed g
 - `TBM:ARMORY|<name>|<classId>|<level>|<online>|<inGroup>|<role>|<spec>|<avgIlvl>|<meleeHit>|<rangedHit>|<spellHit>|<defense>|<fire>+<nature>+<frost>+<shadow>+<arcane>|<hitCap>|<defCap>|<stats>` describes one bot:
   - `<role>` is `tank`, `healer`, `melee`, `ranged` or `caster`, read from the same spec read the gear code uses (spent talents, with a forced `.bot role` winning where it names a single tree). `<spec>` is the talent tree name (`Protection`, `Holy`, `Fury`, ...), or `-`.
   - The three hit values are the bonuses the core adds in its own miss roll (gear, talents and auras), in percent. `<defense>` is the defense skill value including bonuses. The five resists are total resistance per school.
-  - `<hitCap>` is the hit bonus this bot's role needs against a level-63 boss, from this core's miss formulas. Melee, tank and ranged use the melee/ranged formula `5 - (weaponSkill - 315) * 0.2`, so 300 weapon skill needs 8.0%. Casters use `94 - (levelDiff - 2) * 11` hit chance against a target 3 levels higher, which leaves 17% miss at level 60; the core caps spell hit at 99%, so the goal is 16.0% (Turtle floors the level-based hit chance at 33%). Healers have no goal and read 0.
-  - `<defCap>` is 440 for tanks (`315` boss weapon skill plus `5 / 0.04`), else 0.
+  - `<hitCap>` is the hit bonus this bot's role needs against an opponent three levels above the bot (a level-63 boss at level 60), from this core's miss formulas. Melee, tank and ranged use the melee/ranged formula `5 - (weaponSkill - 315) * 0.2`, so 300 weapon skill needs 8.0%. Casters use `94 - (levelDiff - 2) * 11` hit chance against a target 3 levels higher, which leaves 17% miss at level 60; the core caps spell hit at 99%, so the goal is 16.0% (Turtle floors the level-based hit chance at 33%). Healers have no goal and read 0.
+  - `<defCap>` is the defense a tank needs so an opponent three levels higher cannot crit it: 440 at level 60 (`315` boss weapon skill plus `5 / 0.04`), else 0.
   - `<stats>` is `ap=<n>,crit=<pct>,armor=<n>,sta=<n>,sp=<n>,heal=<n>,scrit=<pct>,mp5=<n>,int=<n>`; the addon picks the block by role. Offline bots send `stats=-`, `hitCap=0`, `defCap=0` and zeroed numbers.
-- `TBM:ARMORY_EQ|<name>|<slot>:<itemId>:<enchantId>:<miss>,...` follows every online bot with slots `0`-`18` except shirt (`3`) and tabard (`18`), in slot order:
+- `TBM:ARMORY_EQ|<name>|<slot>:<itemId>:<enchantId>:<miss>:<quality>,...` follows every online bot with slots `0`-`18` except shirt (`3`) and tabard (`18`), in slot order:
   - `<miss>` is `0` (fine), `1` (item present but no permanent enchant on a slot that takes one) or `2` (empty slot that should hold something). Neck, ring and trinket slots never report `1`; the ranged slot reports `1` for hunters only (scopes), and a two-hander in the main hand reports the off hand as `0:0:0`.
+  - `<quality>` is the item quality (0 poor to 5 legendary, 0 for an empty slot), so the addon can colour items the client has not cached yet.
   - Enchantable slots come from the shipped permanent-enchant candidate table (`ai_playerbot_enchant_candidates`), so Turtle's libram/arcanum head, shoulder and leg slots and belt buckles count, and the off hand counts only for a shield or one-hand weapon.
 
 </details>

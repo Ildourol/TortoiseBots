@@ -91,9 +91,9 @@ void SendArmoryRow(ChatHandler* handler, ArmoryRow const& row, Player* bot, uint
             weaponSkill = bot->GetWeaponSkillValue(BASE_ATTACK);
         else if (spec.hitKind == Armory::HitKind::Ranged)
             weaponSkill = bot->GetWeaponSkillValue(RANGED_ATTACK);
-        hitCap = Armory::HitCap(spec.hitKind, weaponSkill, bot->GetLevel());
+        hitCap = Armory::HitCap(spec.hitKind, weaponSkill, bot->GetLevel(), Armory::TargetLevel(bot->GetLevel()));
         if (std::string(spec.role) == "tank")
-            defenseCap = Armory::DefenseCritCap();
+            defenseCap = Armory::DefenseCritCap(Armory::TargetLevel(bot->GetLevel()));
 
         uint32 ilvlSum = 0;
         uint32 ilvlCount = 0;
@@ -131,7 +131,8 @@ void SendArmoryRow(ChatHandler* handler, ArmoryRow const& row, Player* bot, uint
             if (!equipment.empty())
                 equipment += ",";
             equipment += std::to_string(slot) + ":" + std::to_string(itemId) + ":" +
-                std::to_string(enchantId) + ":" + std::to_string(uint32(miss));
+                std::to_string(enchantId) + ":" + std::to_string(uint32(miss)) + ":" +
+                std::to_string(proto ? uint32(proto->Quality) : 0u);
         }
         averageIlvl = ilvlCount ? (ilvlSum + ilvlCount / 2) / ilvlCount : 0;
 
