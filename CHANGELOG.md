@@ -196,6 +196,19 @@
 - Fixed: the totem focus no longer cuts a cast already aimed at the totem it focuses.
 - taunt_after_cast now runs on AuraTactics alone (AiPlayerbot.DungeonRunCharmYield is no longer needed).
 
+## v1.33.0 (2026-11-26)
+
+### Commands
+- `.bot armory` now gives a gear and stat overview for every guild and party bot, or a single bot. [#1695](https://github.com/Sagiroth/TortoiseBots/pull/1695)
+- Each row shows class, level, role, spec, item level, hit, defense and resists, and flags empty or unenchanted slots. [#1695](https://github.com/Sagiroth/TortoiseBots/pull/1695)
+
+### Guild Bots
+- After a restart, your claimed guild bots now log in before other bots, so Invite and Summon can reach them. [#1697](https://github.com/Sagiroth/TortoiseBots/pull/1697)
+- Bots with unfinished guild orders still go first, and pinned bots log in alongside yours within the bot limit. [#1697](https://github.com/Sagiroth/TortoiseBots/pull/1697)
+- The bot pool page now explains this login order. [#1697](https://github.com/Sagiroth/TortoiseBots/pull/1697)
+
+---
+
 ## v1.32.0 (2026-11-26)
 
 ### Gear & Equipment
