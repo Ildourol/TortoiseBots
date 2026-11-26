@@ -196,6 +196,21 @@
 - Fixed: the totem focus no longer cuts a cast already aimed at the totem it focuses.
 - taunt_after_cast now runs on AuraTactics alone (AiPlayerbot.DungeonRunCharmYield is no longer needed).
 
+## v1.32.0 (2026-11-26)
+
+### Gear & Equipment
+- Changing a bot's role now also changes the gear it wants, so a holy paladin finally values intellect items. [#1693](https://github.com/Sagiroth/TortoiseBots/pull/1693)
+- "Equip upgrades" now works instead of answering "failed". [#1693](https://github.com/Sagiroth/TortoiseBots/pull/1693)
+- A bot keeps its tier gear after a talent change, so no more two one-handers or an empty ring slot. [#1693](https://github.com/Sagiroth/TortoiseBots/pull/1693)
+- Gear a bot takes off is no longer destroyed. [#1693](https://github.com/Sagiroth/TortoiseBots/pull/1693)
+- Bots can now repair at field repair bots. [#1693](https://github.com/Sagiroth/TortoiseBots/pull/1693) [#1690](https://github.com/Sagiroth/TortoiseBots/pull/1690)
+
+### World & Objects
+- Bots now open locked buttons that need a spell, such as tinkering buttons, instead of leaving them shut. [#1692](https://github.com/Sagiroth/TortoiseBots/pull/1692)
+- Doors still work exactly as before. [#1692](https://github.com/Sagiroth/TortoiseBots/pull/1692)
+
+---
+
 ## v1.31.3 (2026-11-24)
 
 ### Performance & Stability
