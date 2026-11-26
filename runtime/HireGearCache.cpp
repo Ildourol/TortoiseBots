@@ -3,6 +3,8 @@
 
 // pi-lens-ignore: clang:pp_file_not_found
 #include "Database/DatabaseEnv.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "ObjectMgr.h"
 #include "Log.h"
 
 #include <cstring>
@@ -39,6 +41,8 @@ void HireGearCache::Load()
             row.slot = fields[4].GetUInt8();
             row.itemId = fields[5].GetUInt32();
             row.enchantSpell = fields[6].GetUInt32();
+            ItemPrototype const* proto = sObjectMgr.GetItemPrototype(row.itemId);
+            row.itemLevel = proto ? proto->ItemLevel : 0;
             rows.push_back(row);
         } while (result->NextRow());
     }
@@ -84,6 +88,13 @@ size_t HireGearCache::RowCount() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_rows.size();
+}
+
+uint32_t HireGearCache::PoolFillSlotMask(uint8_t classId, char const* spec, uint8_t race,
+    uint8_t tier, uint32_t ilvlCap) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return HireGearPoolFillSlotMask(m_rows.data(), m_rows.size(), classId, spec, race, tier, ilvlCap);
 }
 
 } // namespace TortoiseBots

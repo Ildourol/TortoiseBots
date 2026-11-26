@@ -34,6 +34,7 @@
 #include "../../runtime/PlayerbotAIStorage.h"
 #include "playerbot/PlayerbotAIConfig.h"
 #include "playerbot/RandomBotFacade.h"
+#include "playerbot/policy/gear/KitSpecPolicy.h"
 #include "playerbot/policy/dungeon/InstanceGuardPolicy.h"
 #include "playerbot/SurvivePolicy.h"
 #include "../../runtime/CommandedGroupQuery.h"
@@ -191,37 +192,23 @@ int AiFactory::GetPlayerSpecTab(const Player* bot)
     }
 }
 
+static_assert(KIT_SPEC_ROLE_TANK == BOT_ROLE_TANK, "KitSpecPolicy role bits must match ai::BotRoles");
+static_assert(KIT_SPEC_ROLE_HEALER == BOT_ROLE_HEALER, "KitSpecPolicy role bits must match ai::BotRoles");
+static_assert(KIT_SPEC_ROLE_DPS == BOT_ROLE_DPS, "KitSpecPolicy role bits must match ai::BotRoles");
+
 int AiFactory::GetKitSpecTab(const Player* player, PlayerbotAI* const facade)
 {
     int const tab = GetPlayerSpecTab(player);
-    uint8 const role = facade ? facade->GetForcedRole() : static_cast<uint8>(BOT_ROLE_NONE);
-    if (!role)
-        return tab;
+    // A facade for another player (a caller reading a group member) must not
+    // lend that player's role: fall back to the talents, like no facade.
+    uint8 const role = facade && facade->GetBot() == player
+        ? facade->GetForcedRole() : static_cast<uint8>(BOT_ROLE_NONE);
+    return ResolveKitSpecTab(player->GetClass(), tab, role);
+}
 
-    // A forced tank role on a holy/ret paladin, arms/fury warrior or caster
-    // druid (low-level alts have no talents yet) was read as a tank by the
-    // group but kept the damage kit, so it never picked mobs off the healer.
-    if (role == BOT_ROLE_TANK)
-    {
-        if (player->GetClass() == CLASS_WARRIOR)
-            return 2; // protection
-        if (player->GetClass() == CLASS_PALADIN)
-            return 1; // protection
-        if (player->GetClass() == CLASS_DRUID)
-            return 1; // feral
-        return tab;
-    }
-    if (role & BOT_ROLE_TANK)
-        return tab;
-
-    // `.bot role <bot> dps` on a protection warrior kept "protection",
-    // "tank assist" and "pull" from his talent tab, and he taunted the group
-    // tank's target off him. Only the Feral druid read the forced role.
-    if (player->GetClass() == CLASS_WARRIOR && tab == 2)
-        return 0; // arms
-    if (player->GetClass() == CLASS_PALADIN && tab == 1)
-        return (role & BOT_ROLE_HEALER) ? 0 : 2; // holy or retribution
-    return tab;
+int AiFactory::GetKitSpecTab(const Player* player)
+{
+    return GetKitSpecTab(player, PlayerbotAIStorage::Instance().GetAI(const_cast<Player*>(player)));
 }
 
 std::map<uint32, int32> AiFactory::GetPlayerSpecTabs(const Player* bot)

@@ -35,7 +35,9 @@
 #include "../ai/playerbot/PullStartPolicy.h"
 #include "../ai/playerbot/PullRefusalPolicy.h"
 #include "../ai/playerbot/strategy/actions/SellAction.h"
+#include "../ai/playerbot/strategy/actions/RepairAllAction.h"
 #include "../ai/playerbot/policy/gear/SellRefusalPolicy.h"
+#include "../ai/playerbot/policy/gear/RepairRefusalPolicy.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "../ai/playerbot/strategy/generic/PullStrategy.h"
 #include "../ai/playerbot/strategy/values/RtiTargetValue.h"
@@ -181,6 +183,7 @@ bool HandleRepair(ChatHandler* handler, char const* args)
         return true;
     }
     uint32 succeeded = 0;
+    std::vector<std::string> refusals;
     for (Player* bot : scope)
     {
         PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot);
@@ -188,8 +191,13 @@ bool HandleRepair(ChatHandler* handler, char const* args)
             continue;
         if (ExecuteQuietAction(ai, "repair", ai::Event("bot command", "repair", requester)))
             ++succeeded;
+        else
+            refusals.push_back(ai::RepairAllAction::RefusalReason(ai));
     }
-    handler->PSendSysMessage("Commanded %u bot(s) to repair equipment.", succeeded);
+    if (succeeded)
+        handler->PSendSysMessage("Commanded %u bot(s) to repair equipment.", succeeded);
+    else
+        handler->PSendSysMessage("%s", ai::FormatRepairRefusal(refusals).c_str());
     return true;
 }
 

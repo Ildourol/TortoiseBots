@@ -416,7 +416,7 @@ ItemUsage ItemUsageValue::Calculate()
     if (equip != ItemUsage::ITEM_USAGE_NONE)
         return equip;
 
-    if (!miscWeapon && IsFutureUpgrade(itemQualifier, bot))
+    if (!miscWeapon && IsFutureUpgrade(itemQualifier, bot, ai))
         return ItemUsage::ITEM_USAGE_KEEP;
 
 
@@ -669,13 +669,13 @@ std::vector<uint8> ItemUsageValue::GetEquipSlotCandidates(Player* bot, Item* ite
     return candidates;
 }
 
-uint8 ItemUsageValue::GetPreferredEquipSlot(Player* bot, Item* item, ItemPrototype const* proto)
+uint8 ItemUsageValue::GetPreferredEquipSlot(Player* bot, Item* item, ItemPrototype const* proto, PlayerbotAI* facade)
 {
     std::vector<uint8> candidates = GetEquipSlotCandidates(bot, item, proto);
     if (candidates.empty())
         return NULL_SLOT;
 
-    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot);
+    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot, facade);
     if (!specId)
         specId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
 
@@ -724,7 +724,7 @@ uint8 ItemUsageValue::GetPreferredEquipSlot(Player* bot, Item* item, ItemPrototy
             return slot; // off-spec weapon here: this is the slot to replace
         }
 
-        uint32 weight = sRandomItemMgr.ItemStatWeight(bot, equipped);
+        uint32 weight = sRandomItemMgr.ItemStatWeight(bot, equipped, facade);
         if (best == NULL_SLOT || weight < bestWeight)
         {
             best = slot;
@@ -817,13 +817,13 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemQualifier& itemQualifier, P
         bot->GetClass() == CLASS_HUNTER &&
         bot->GetWeaponForAttack(WeaponAttackType::RANGED_ATTACK, false, false) != nullptr);
 
-    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot);
+    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot, ai);
     if (!specId)
         specId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
 
     bool const canDualWield = bot->CanDualWield();
 
-    uint8 slot = ItemUsageValue::GetPreferredEquipSlot(bot, bagItem, itemProto);
+    uint8 slot = ItemUsageValue::GetPreferredEquipSlot(bot, bagItem, itemProto, ai);
     if (slot == NULL_SLOT && !isQuiverUpgradeCandidate)
     {
         // A two-hander in the main hand makes core resolve no off-hand slot, so
@@ -948,7 +948,7 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemQualifier& itemQualifier, P
     // Compare the items themselves: an enchant on the worn piece is lost on the
     // swap anyway and must not hide a better base item.
     ItemQualifier baseQualifier(itemQualifier.GetId(), itemQualifier.GetRandomPropertyId());
-    uint32 statWeight = sRandomItemMgr.ItemStatWeight(bot, baseQualifier);
+    uint32 statWeight = sRandomItemMgr.ItemStatWeight(bot, baseQualifier, ai);
     if (statWeight)
         shouldEquip = true;
 
@@ -1041,7 +1041,7 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemQualifier& itemQualifier, P
     }
 
     ItemQualifier oldBaseQualifier(oldItemProto->ItemId, oldItem->GetItemRandomPropertyId());
-    uint32 oldStatWeight = sRandomItemMgr.ItemStatWeight(bot, oldBaseQualifier);
+    uint32 oldStatWeight = sRandomItemMgr.ItemStatWeight(bot, oldBaseQualifier, ai);
 
     // When the weighted scores tie - the common case for low-level gear, since
     // armour-only pieces score 0 for nearly every spec - the sheet value breaks
@@ -2365,7 +2365,7 @@ uint32 ItemUsageValue::DesiredPricePerItem(Player* bot, const ItemPrototype* pro
     return desiredPricePerItem;
 }
 
-bool ItemUsageValue::IsFutureUpgrade(ItemQualifier& itemQualifier, Player* bot)
+bool ItemUsageValue::IsFutureUpgrade(ItemQualifier& itemQualifier, Player* bot, PlayerbotAI* facade)
 {
     ItemPrototype const* proto = itemQualifier.GetProto();
     if (!proto || !bot || (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR))
@@ -2385,7 +2385,7 @@ bool ItemUsageValue::IsFutureUpgrade(ItemQualifier& itemQualifier, Player* bot)
             return false;
     }
 
-    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot);
+    uint32 specId = sRandomItemMgr.GetPlayerSpecId(bot, facade);
     if (!specId)
         specId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
 
@@ -2396,7 +2396,7 @@ bool ItemUsageValue::IsFutureUpgrade(ItemQualifier& itemQualifier, Player* bot)
         return false;
 
     ItemQualifier baseQualifier(itemQualifier.GetId(), itemQualifier.GetRandomPropertyId());
-    uint32 statWeight = sRandomItemMgr.ItemStatWeight(bot, baseQualifier);
+    uint32 statWeight = sRandomItemMgr.ItemStatWeight(bot, baseQualifier, facade);
     if (!statWeight)
         return false;
 
@@ -2409,6 +2409,6 @@ bool ItemUsageValue::IsFutureUpgrade(ItemQualifier& itemQualifier, Player* bot)
         return true;
 
     ItemQualifier wornQualifier(worn->GetProto()->ItemId, worn->GetItemRandomPropertyId());
-    return ai::EquipUpgradeBetter(statWeight, sRandomItemMgr.ItemStatWeight(bot, wornQualifier),
+    return ai::EquipUpgradeBetter(statWeight, sRandomItemMgr.ItemStatWeight(bot, wornQualifier, facade),
         sPlayerbotAIConfig.equipUpgradeThreshold);
 }

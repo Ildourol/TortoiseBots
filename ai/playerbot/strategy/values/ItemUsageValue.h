@@ -75,7 +75,9 @@ namespace ai
         static ItemUsage QueryItemUsageForEquip(ItemQualifier& itemQualifier, Player* bot);
         // Gear the bot can use once it levels up (within kFutureUpgradeLevels)
         // and that would then beat what it wears: kept, and NEEDed in rolls.
-        static bool IsFutureUpgrade(ItemQualifier& itemQualifier, Player* bot);
+        // The optional facade saves the spec lookup the registry lock; a
+        // facade for another player is ignored.
+        static bool IsFutureUpgrade(ItemQualifier& itemQualifier, Player* bot, PlayerbotAI* facade = nullptr);
         // Equipment slots an item may legitimately occupy, primary first.
         // Core FindEquipSlot(NULL_SLOT, swap=true) only ever reports slots[0]
         // once every eligible slot is full, so a ring/trinket pair or a
@@ -86,7 +88,7 @@ namespace ai
         // first empty candidate, else the candidate whose item is weakest (an
         // off-spec weapon counts as weakest so the spec transition can replace
         // it). NULL_SLOT when core accepts no slot.
-        static uint8 GetPreferredEquipSlot(Player* bot, Item* item, ItemPrototype const* proto);
+        static uint8 GetPreferredEquipSlot(Player* bot, Item* item, ItemPrototype const* proto, PlayerbotAI* facade = nullptr);
         static uint32 GetSmallestBagSize(Player* bot);
         static std::string ReasonForNeed(ItemUsage usage, ItemQualifier qualifier = ItemQualifier(), uint32 count = 1, Player* bot = nullptr);
         static uint32 GetAhDepositCost(ItemPrototype const* proto, uint32 count = 1);

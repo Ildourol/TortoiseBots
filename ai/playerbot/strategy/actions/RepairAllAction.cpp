@@ -1,18 +1,88 @@
-
 #include "playerbot/playerbot.h"
 #include "RepairAllAction.h"
+#include "ServiceNpcsInReach.h"
+
+#include <cmath>
 
 #include "playerbot/ServerFacade.h"
+#include "playerbot/policy/gear/RepairRefusalPolicy.h"
 
 using namespace ai;
+
+namespace
+{
+    // Durability points missing from everything DurabilityRepairAll fixes, so a
+    // repair that only touched a spare weapon in a bag still counts as done.
+    uint64 MissingDurability(Player* bot)
+    {
+        uint64 missing = 0;
+
+        auto countItem = [&missing](Item* item)
+        {
+            if (!item)
+                return;
+
+            uint32 const maxDurability = item->GetUInt32Value(ITEM_FIELD_MAXDURABILITY);
+            uint32 const durability = item->GetUInt32Value(ITEM_FIELD_DURABILITY);
+            if (ItemNeedsRepair(maxDurability, durability))
+                missing += maxDurability - durability;
+        };
+
+        for (int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
+            countItem(bot->GetItemByPos(uint16((INVENTORY_SLOT_BAG_0 << 8) | i)));
+
+        for (int bag = INVENTORY_SLOT_BAG_START; bag < INVENTORY_SLOT_BAG_END; ++bag)
+            for (int slot = 0; slot < MAX_BAG_SIZE; ++slot)
+                countItem(bot->GetItemByPos(uint16((bag << 8) | slot)));
+
+        return missing;
+    }
+}
+
+std::string RepairAllAction::RefusalReason(PlayerbotAI* ai)
+{
+    Player* bot = ai->GetBot();
+    bool const anythingToRepair = MissingDurability(bot) > 0;
+
+    bool repairNpcInReach = false;
+    if (anythingToRepair)
+    {
+        for (Creature* candidate : ServiceCreaturesInReach(bot))
+        {
+            if (bot->GetNPCIfCanInteractWith(candidate->GetObjectGuid(), UNIT_NPC_FLAG_REPAIR))
+            {
+                repairNpcInReach = true;
+                break;
+            }
+        }
+    }
+
+    float yards = 0.0f;
+    Creature* nearest = anythingToRepair && !repairNpcInReach
+        ? NearestNpcWithFlagInSight(bot, UNIT_NPC_FLAG_REPAIR, yards) : nullptr;
+    // A repair npc close enough that only the usability check refused it (in
+    // combat, invisible, not selectable) is a different answer than "walk
+    // closer": say the npc is here but cannot be used.
+    if (nearest && yards <= INTERACTION_DISTANCE)
+        repairNpcInReach = true;
+
+    // An out-of-reach distance rounds up: "the nearest is 5 yards away" at a
+    // 5-yard reach would read like a contradiction.
+    return RepairRefusalReason(anythingToRepair, repairNpcInReach,
+        nearest ? int(std::ceil(yards)) : -1);
+}
 
 bool RepairAllAction::Execute(Event& event)
 {
     Player* requester = event.GetOwner() ? event.GetOwner() : GetMaster();
-    std::list<ObjectGuid> npcs = AI_VALUE(std::list<ObjectGuid>, "nearest npcs");
-    for (std::list<ObjectGuid>::iterator i = npcs.begin(); i != npcs.end(); i++)
+
+    // Interaction distance is the whole reach rule. The creatures at hand come
+    // from the map rather than the cached, line-of-sight-filtered "nearest
+    // npcs" value, so a summoned field repair bot (a temporary summon or a
+    // player's companion) is found like any other repair npc.
+    for (Creature* candidate : ServiceCreaturesInReach(bot))
     {
-        Creature *unit = bot->GetNPCIfCanInteractWith(*i, UNIT_NPC_FLAG_REPAIR);
+        Creature *unit = bot->GetNPCIfCanInteractWith(candidate->GetObjectGuid(), UNIT_NPC_FLAG_REPAIR);
         if (!unit)
             continue;
 
@@ -28,6 +98,7 @@ bool RepairAllAction::Execute(Event& event)
         float discountMod = bot->GetReputationPriceDiscount(unit);
 
         float durability = AI_VALUE(uint8, "durability inventory");
+        uint64 const missingBefore = MissingDurability(bot);
 
         uint32 botMoney = bot->GetMoney();
         if (ai->HasCheat(BotCheatMask::gold))
@@ -56,6 +127,10 @@ bool RepairAllAction::Execute(Event& event)
         //Totalcost is bugged in core. For now we use this work-around.
         totalCost = botMoney - bot->GetMoney();
 
+        // A cheated purse is put back before this point, so the money spent
+        // cannot tell a free repair from no repair: the durability drop does.
+        bool const repaired = totalCost > 0 || MissingDurability(bot) < missingBefore;
+
         if (totalCost > 0)
         {
             std::ostringstream out;
@@ -65,16 +140,20 @@ bool RepairAllAction::Execute(Event& event)
                 bot->PlayDistanceSound(7994);
 
             sPlayerbotAIConfig.logEvent(ai, "RepairAllAction", std::to_string(durability), std::to_string(totalCost));
-
-            ai->DoSpecificAction("equip upgrades", event, true);
         }
+
+        if (repaired)
+            ai->DoSpecificAction("equip upgrades", event, true);
 
         SET_AI_VALUE(uint32, "death count", 0);
         RESET_AI_VALUE(uint8, "durability inventory");
 
-        return durability < 100 && AI_VALUE(uint8, "durability inventory") > durability;
+        if (!repaired)
+            ai->TellPlayerNoFacing(requester, "Cannot repair: " + RefusalReason(ai));
+
+        return repaired;
     }
 
-    ai->TellPlayerNoFacing(requester, "Cannot find any npc to repair at");
+    ai->TellPlayerNoFacing(requester, "Cannot repair: " + RefusalReason(ai));
     return false;
 }

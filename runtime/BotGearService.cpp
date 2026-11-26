@@ -4,6 +4,7 @@
 #include "BotManager.h"
 #include "HireProvisionService.h"
 #include "PlayerbotAIStorage.h"
+#include "ReplacedGear.h"
 #include "policy/hire/HireGearPolicy.h"
 #include "../ai/playerbot/PlayerbotAI.h"
 #include "HireGearCache.h"
@@ -11,12 +12,13 @@
 #include "../ai/playerbot/PlayerbotAIConfig.h"
 #include "../ai/playerbot/PlayerbotFactory.h"
 #include "../ai/playerbot/RandomItemMgr.h"
-#include "../ai/playerbot/RandomBotFacade.h"
-#include "../ai/playerbot/strategy/actions/ChangeTalentsAction.h"
+#include "../ai/playerbot/AiFactory.h"
 #include "../host/ModuleLog.h"
 
 // pi-lens-ignore: clang:pp_file_not_found
 #include "Chat.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Database/DatabaseEnv.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "ObjectAccessor.h"
 // pi-lens-ignore: clang:pp_file_not_found
@@ -30,6 +32,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <ctime>
+#include <memory>
 #include <set>
 
 namespace TortoiseBots
@@ -88,37 +92,6 @@ void CollectCreatedItemGuids(Player* bot, std::set<uint32_t> const& before, std:
             created.insert(guidLow);
 }
 
-// After gearing, a still-worn weapon/armor above the cap is unequipped to the
-// bags (never destroyed), so "no worn weapon/armor above the cap" holds.
-// Returns the count moved. A full bag keeps the piece worn (reported, not
-// lost): the pin still stops the bot re-equipping it later.
-uint32_t UnequipAboveCapWorn(Player* bot, uint32_t cap)
-{
-    if (!bot || !cap)
-        return 0;
-    uint32_t moved = 0;
-    for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
-    {
-        Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
-        ItemPrototype const* proto = item ? item->GetProto() : nullptr;
-        if (!proto)
-            continue;
-        if (proto->Class != BotGear::ITEM_CLASS_WEAPON && proto->Class != BotGear::ITEM_CLASS_ARMOR)
-            continue;
-        if (!BotGear::WornAboveCap(proto->ItemLevel, cap))
-            continue;
-        ItemPosCountVec dest;
-        if (bot->CanStoreItem(NULL_BAG, NULL_SLOT, dest, item, false) != EQUIP_ERR_OK)
-            continue;
-        uint8 bag = item->GetBagSlot();
-        uint8 wornSlot = item->GetSlot();
-        bot->RemoveItem(bag, wornSlot, true);
-        bot->StoreItem(dest, item, true);
-        ++moved;
-    }
-    return moved;
-}
-
 } // namespace
 BotGearService& BotGearService::Instance()
 {
@@ -141,9 +114,47 @@ bool BotGearService::Queue(uint64_t requesterGuid, std::vector<ObjectGuid> const
     return true;
 }
 
+void BotGearService::Load()
+{
+    m_pinned.clear();
+    std::unique_ptr<QueryResult> result(CharacterDatabase.Query(
+        "SELECT `guid`, `tier`, `ilvl_cap` FROM `tortoise_bots_gear_mode`"));
+    if (!result)
+        return;
+    do
+    {
+        Field* fields = result->Fetch();
+        uint32_t guidLow = fields[0].GetUInt32();
+        if (!guidLow)
+            continue;
+        m_pinned[guidLow] = BotGearPin{
+            static_cast<uint8_t>(fields[1].GetUInt8()), fields[2].GetUInt32() };
+    } while (result->NextRow());
+}
+
 bool BotGearService::IsPinned(uint32_t guidLow) const
 {
     return m_pinned.count(guidLow) != 0;
+}
+
+bool BotGearService::GearMode(uint32_t guidLow, BotGearPin& out) const
+{
+    auto it = m_pinned.find(guidLow);
+    if (it == m_pinned.end())
+        return false;
+    out = it->second;
+    return true;
+}
+
+void BotGearService::RememberGearMode(uint32_t guidLow, BotGearPin mode)
+{
+    if (!guidLow)
+        return;
+    CharacterDatabase.PExecute(
+        "REPLACE INTO `tortoise_bots_gear_mode` (`guid`, `tier`, `ilvl_cap`, `updated`) "
+        "VALUES ('%u', '%u', '%u', '%u')",
+        guidLow, uint32_t(mode.tier), mode.ilvlCap, uint32_t(time(nullptr)));
+    m_pinned[guidLow] = mode;
 }
 
 uint32_t BotGearService::PinnedCap(uint32_t guidLow) const
@@ -152,9 +163,13 @@ uint32_t BotGearService::PinnedCap(uint32_t guidLow) const
     return it != m_pinned.end() ? it->second.ilvlCap : 0;
 }
 
-void BotGearService::UnpinBot(uint32_t guidLow)
+void BotGearService::UnpinBot(uint32_t guidLow, bool synchronous)
 {
     m_pinned.erase(guidLow);
+    if (synchronous)
+        CharacterDatabase.DirectPExecute("DELETE FROM `tortoise_bots_gear_mode` WHERE `guid` = '%u'", guidLow);
+    else
+        CharacterDatabase.PExecute("DELETE FROM `tortoise_bots_gear_mode` WHERE `guid` = '%u'", guidLow);
 }
 
 uint32_t BotGearService::WornMaxIlvl(Player* bot)
@@ -194,6 +209,36 @@ float BotGearService::AverageWornIlvl(Player* bot)
     return count ? static_cast<float>(sum) / static_cast<float>(count) : 0.0f;
 }
 
+// After gearing, a still-worn weapon/armor above the cap is unequipped to the
+// bags (never destroyed), so "no worn weapon/armor above the cap" holds.
+// Returns the count moved. A full bag keeps the piece worn (reported, not
+// lost): the pin still stops the bot re-equipping it later.
+uint32_t BotGearService::UnequipAboveCapWorn(Player* bot, uint32_t cap)
+{
+    if (!bot || !cap)
+        return 0;
+    uint32_t moved = 0;
+    for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+    {
+        Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+        ItemPrototype const* proto = item ? item->GetProto() : nullptr;
+        if (!proto)
+            continue;
+        if (proto->Class != BotGear::ITEM_CLASS_WEAPON && proto->Class != BotGear::ITEM_CLASS_ARMOR)
+            continue;
+        if (!BotGear::WornAboveCap(proto->ItemLevel, cap))
+            continue;
+        ItemPosCountVec dest;
+        if (bot->CanStoreItem(NULL_BAG, NULL_SLOT, dest, item, false) != EQUIP_ERR_OK)
+            continue;
+        uint8 bag = item->GetBagSlot();
+        uint8 wornSlot = item->GetSlot();
+        bot->RemoveItem(bag, wornSlot, true);
+        bot->StoreItem(dest, item, true);
+        ++moved;
+    }
+    return moved;
+}
 
 void BotGearService::SendLines(uint64_t requesterGuid, std::string const& plain, std::string const& structured)
 {
@@ -259,13 +304,14 @@ void BotGearService::Update(uint32_t /*diff*/)
             m_job.result.bots.push_back(outcome);
             continue;
         }
-        // The bot's own talent spec picks the kit, as the respec path does. Menu option 0 is the tank
-        // spec for warrior, paladin and druid, so it must not stand in for a DPS or healer spec.
-        uint32_t const specNo = sRandomBotFacade.GetValue(bot->GetGUIDLow(), "specNo");
-        std::string const pathName = specNo > 0
-            ? ChangeTalentsAction::GetPremadePathName(bot->GetClass(), static_cast<int>(specNo - 1))
-            : std::string();
-        char const* specKey = ResolveHireGearKeyForPath(bot->GetClass(), pathName.c_str(), role);
+        // The one spec read (talents plus a forced role) picks the kit, the
+        // same way stat weights and the strategy kit do. Menu option 0 is
+        // the tank spec for warrior, paladin and druid, so it must not stand
+        // in for a DPS or healer spec; the feral and shaman tank builds share
+        // a tab with their DPS build and are told apart by the tank read.
+        int const tab = AiFactory::GetKitSpecTab(bot, ai);
+        bool const tank = PlayerbotAI::IsTank(bot);
+        char const* specKey = ResolveHireGearKeyForTab(bot->GetClass(), tab, tank);
         bool const hasKit = m_job.args.tier > 0 && specKey &&
             HireGearCache::Instance().HasSetFor(bot->GetClass(), specKey, m_job.args.tier);
         if (m_job.args.tier > 0 && !hasKit)
@@ -282,16 +328,30 @@ void BotGearService::Update(uint32_t /*diff*/)
         }
         std::set<uint32_t> before;
         CollectOwnedItemGuids(bot, before);
-        if (m_job.args.ilvlCap)
-        {
-            PlayerbotFactory factory(bot, bot->GetLevel());
-            factory.AutogearOwned(ITEM_QUALITY_EPIC, m_job.args.ilvlCap);
-        }
+        // Two passes: a pool backfill first, then the tier kit. The backfill
+        // fills only the slots the kit leaves alone (no row, or a row above the
+        // cap). A slot the kit covers belongs to the kit: touching it first
+        // leaves the piece the bot already wore in the bags and has the kit
+        // create a fresh copy, which grew the bags and mailed a duplicate on
+        // every call. What the backfill equips and a later step replaces is gear
+        // this call made, so it is destroyed rather than filed in the bags.
+        uint32_t const poolSlots = hasKit
+            ? HireGearCache::Instance().PoolFillSlotMask(bot->GetClass(), specKey, bot->GetRace(),
+                m_job.args.tier, m_job.args.ilvlCap)
+            : 0;
         std::vector<uint8_t> capped;
-        if (m_job.args.tier > 0 && ai)
         {
-            HireProvisionService::EquipHireGearSet(bot, ai, bot->GetClass(), specKey, bot->GetRace(),
-                m_job.args.tier, m_job.args.ilvlCap, m_job.args.enchants, &capped);
+            TortoiseBots::ThrowawayGearScope throwawayGear(bot);
+            if (m_job.args.ilvlCap && (!hasKit || poolSlots != 0))
+            {
+                PlayerbotFactory factory(bot, bot->GetLevel());
+                factory.AutogearOwned(ITEM_QUALITY_EPIC, m_job.args.ilvlCap, hasKit ? poolSlots : 0);
+            }
+            if (m_job.args.tier > 0 && ai)
+            {
+                HireProvisionService::EquipHireGearSet(bot, ai, bot->GetClass(), specKey, bot->GetRace(),
+                    m_job.args.tier, m_job.args.ilvlCap, m_job.args.enchants, &capped);
+            }
         }
         std::set<uint32_t> created;
         CollectCreatedItemGuids(bot, before, created);
@@ -335,7 +395,7 @@ void BotGearService::Update(uint32_t /*diff*/)
         outcome.geared = true;
         m_job.result.bots.push_back(outcome);
         bot->SaveToDB();
-        m_pinned[guid.GetCounter()] = BotGearPin{m_job.args.tier, m_job.args.ilvlCap};
+        RememberGearMode(guid.GetCounter(), BotGearPin{m_job.args.tier, m_job.args.ilvlCap});
     }
     if (m_job.next < m_job.bots.size())
         return;

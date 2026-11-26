@@ -153,6 +153,39 @@ inline int HireSpecIndexForWord(uint8_t classId, std::string const& word)
     return -1;
 }
 
+// Talent tab (AiFactory::GetKitSpecTab) -> menu option, so a respec refit, a
+// hire and `.bot gear` key off the build the bot actually has instead of a
+// stored path name. Feral druids and shaman tanks share a talent tab with
+// their DPS build, so the tank flag picks the bear or tank row.
+inline int HireSpecIndexForTab(uint8_t classId, int tab, bool tank)
+{
+    static int const warrior[] = { 1, 2, 0 };  // Arms, Fury, Protection
+    static int const paladin[] = { 1, 0, 2 };  // Holy, Protection, Retribution
+    static int const hunter[] = { 0, 1, 2 };   // Beast Mastery, Marksmanship, Survival
+    static int const rogue[] = { 0, 1, 2 };    // Assassination, Combat, Subtlety
+    static int const priest[] = { 1, 0, 2 };   // Discipline, Holy, Shadow
+    static int const shaman[] = { 1, 2, 0 };   // Elemental, Enhancement, Restoration
+    static int const mage[] = { 2, 1, 0 };     // Arcane, Fire, Frost
+    static int const warlock[] = { 0, 1, 2 };  // Affliction, Demonology, Destruction
+    static int const druid[] = { 2, 1, 1 };    // Balance, Feral, Restoration
+
+    if (tab < 0 || tab > 2)
+        return -1;
+    switch (classId)
+    {
+        case kHireClassWarrior: return warrior[tab];
+        case kHireClassPaladin: return paladin[tab];
+        case kHireClassHunter: return hunter[tab];
+        case kHireClassRogue: return rogue[tab];
+        case kHireClassPriest: return priest[tab];
+        case kHireClassShaman: return tab == 1 && tank ? 3 : shaman[tab];
+        case kHireClassMage: return mage[tab];
+        case kHireClassWarlock: return warlock[tab];
+        case kHireClassDruid: return tab == 1 ? (tank ? 0 : 3) : druid[tab];
+        default: return -1;
+    }
+}
+
 // Shaman Enhancement (Tank) needs the level-10 taunt (Earthshaker Slam): the
 // gossip spec menu hides the row below that level instead of hiring a tank
 // that cannot taunt (issue #1125). Pure: the caller passes the hirer's level

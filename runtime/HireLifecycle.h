@@ -65,11 +65,6 @@ public:
     // and the master-departure rule leaves it alone.
     void MarkGrouped(ObjectGuid botGuid);
 
-    // Issue #490: the gear tier the hire was provisioned in (0 = random
-    // kit). A respec keeps a tier kit instead of re-rolling pool gear.
-    void SetGearTier(ObjectGuid botGuid, uint8_t tier);
-    uint8_t GearTier(ObjectGuid botGuid) const;
-
     // Remote commander (issue #884): a hire may be bound by its own hirer, which
     // takes the hirer out of the hire's party. While bound, the "left the
     // hirer's party" end conditions are suspended (HireDeparturePolicy.h); the
@@ -124,7 +119,6 @@ private:
         // A departure before that is a provisioning artefact, never an end of
         // hire: only then is a master-less group a dismissal.
         bool everGrouped = false;
-        uint8_t gearTier = 0;
         // Remote commander: where the hire stands in its hirer's binding.
         HireCommandState commandState = HireCommandState::None;
         // The hirer logged out while the hire sat in a bound party: when the

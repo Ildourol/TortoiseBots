@@ -45,7 +45,7 @@ Companion bots follow special navigation rules inside dungeons and raids to avoi
 | [`.bot action sap`](#bot-action-sap) | Controller | Rogue / None | Toggles pre-pull Sap behavior on CC marks. |
 | [`.bot action aoe`](#bot-action-aoe) | Controller | None | Toggles area-of-effect spells across party bots. |
 | [`.bot action loot`](#bot-action-loot) | Controller | None | Toggles corpse looting on or off. |
-| [`.bot action repair`](#bot-action-repair) | Controller | None | Orders bots to repair gear at a nearby vendor. |
+| [`.bot action repair`](#bot-action-repair) | Controller | None | Orders bots to repair gear at a nearby repair npc. |
 | [`.bot action sell`](#bot-action-sell) | Controller | None | Orders bots to sell gray junk items to vendor. |
 | [`.bot action rest`](#bot-action-rest) | Controller | None | Orders bots to sit and consume food and drink. |
 | [`.bot action release`](#bot-action-release) | Controller | None | Commands dead companion bots to release spirit. |
@@ -381,20 +381,26 @@ Toggles corpse looting on scoped bots.
 
 ### `.bot action repair`
 
-Repairs scoped bots' gear at a nearby repair merchant.
+Repairs scoped bots' gear at a nearby repair npc.
 
 ```text
 .bot action repair
 ```
 
+- Any npc with the repair flag works, including a summoned field repair bot such as the engineering ones or the donation shop's Field Repair Bot 75B.
+- Bots must be within interaction range (5 yards) of it.
+- If nothing repairs, the reply says why: nothing to repair, no repair npc nearby, no repair npc in reach (the nearest is N yards away), or a repair npc is in reach but cannot be used.
+
 ### `.bot action sell`
 
-Sells scoped bots' gray junk at a nearby stocked vendor.
+Sells scoped bots' gray junk at a nearby vendor.
 
 ```text
 .bot action sell
 ```
 
+- Any npc with the vendor flag works, including a repair bot that buys unwanted goods; it does not need stock on sale.
+- Bots must be within interaction range (5 yards) of it.
 - If nothing sells, the reply says why.
 - Reasons: nothing grey to sell, no vendor in reach, or no grey item the bot will sell here.
 

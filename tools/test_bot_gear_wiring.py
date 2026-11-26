@@ -41,6 +41,37 @@ class BotGearWiringTest(unittest.TestCase):
         self.assertIn("BotGear::RowAllowed(", PROVISION_CPP)
         self.assertIn("cappedSlots->push_back(", PROVISION_CPP)
 
+    def test_pool_pass_fills_only_kit_uncovered_slots(self):
+        # A pool pass over a slot the kit covers displaces the piece the bot
+        # already wore, and the kit then creates a fresh copy: the bags grow and
+        # every repeat mails the old piece. Only the uncovered slots may be
+        # filled, and a kit row the bot already owns is re-equipped, never
+        # duplicated (a max_count 1 row is otherwise refused and skipped).
+        self.assertIn("PoolFillSlotMask(", strip_comments(SERVICE))
+        self.assertIn("AutogearOwned(ITEM_QUALITY_EPIC, m_job.args.ilvlCap, hasKit ? poolSlots : 0)", strip_comments(SERVICE))
+        talents = strip_comments((ROOT / "ai/playerbot/strategy/actions/ChangeTalentsAction.cpp").read_text())
+        self.assertIn("PoolFillSlotMask(", talents)
+        self.assertIn("AutogearOwned(ITEM_QUALITY_EPIC, mode.ilvlCap, poolSlots)", talents)
+        kit = strip_comments(PROVISION_CPP)
+        self.assertIn("FindBagCopy(bot, row->itemId)", kit)
+        self.assertIn("bot->SwapItem(owned->GetPos()", kit)
+
+    def test_kit_moves_a_copy_worn_in_the_paired_slot(self):
+        # A max_count 1 kit row whose copy is worn in the paired ring/trinket
+        # slot cannot be equipped a second time; the pass must move that copy
+        # into the row's slot instead of skipping the row.
+        kit = strip_comments(PROVISION_CPP)
+        self.assertIn("FindWornCopyInOtherSlot(bot, row->itemId, slot, wornSlot)", kit)
+        self.assertIn("bot->SwapItem(uint16((INVENTORY_SLOT_BAG_0 << 8) | wornSlot), uint16((INVENTORY_SLOT_BAG_0 << 8) | slot))", kit)
+
+    def test_incremental_pass_keeps_what_it_already_wears(self):
+        # Repeating `.bot gear` must change nothing: the shirt/tabard slots are
+        # never re-rolled once worn, and a worn piece under the cap stays unless
+        # the pool offers a strictly better one.
+        factory = strip_comments((ROOT / "ai/playerbot/PlayerbotFactory.cpp").read_text())
+        self.assertIn("ai::CosmeticSlotKeepsWorn(", factory)
+        self.assertIn("IncrementalKeepsWornPiece(oldStatValue, newStatValue,", factory)
+
     def test_service_gears_then_purges(self):
         auto = SERVICE.index("AutogearOwned(ITEM_QUALITY_EPIC")
         kit = SERVICE.index("EquipHireGearSet(")
@@ -79,10 +110,27 @@ class BotGearWiringTest(unittest.TestCase):
     def test_worn_above_cap_is_unequipped_not_destroyed(self):
         self.assertIn("UnequipAboveCapWorn(", SERVICE)
         self.assertIn("BotGear::WornAboveCap(", SERVICE)
-        wear = strip_comments(body(SERVICE, "uint32_t UnequipAboveCapWorn(Player* bot, uint32_t cap)", "\n}\n"))
+        wear = strip_comments(body(SERVICE, "uint32_t BotGearService::UnequipAboveCapWorn(Player* bot, uint32_t cap)", "\n}\n"))
         self.assertIn("bot->RemoveItem(", wear)
         self.assertIn("bot->StoreItem(", wear)
         self.assertNotIn("DestroyItem", wear)
+
+    def test_gear_mode_persists_and_refits(self):
+        # The mode a bot was last geared in survives a restart, and a respec
+        # refits that mode (kit under the same cap, or the pool under the
+        # recorded cap) instead of re-rolling the pool.
+        adapter = (ROOT / "host" / "BotGearAdapter.cpp").read_text()
+        self.assertIn("BotGearService::Instance().Load()", adapter)
+        self.assertIn("RememberGearMode(", SERVICE)
+        self.assertIn("RememberGearMode(", PROVISION_CPP)
+        talents = strip_comments((ROOT / "ai/playerbot/strategy/actions/ChangeTalentsAction.cpp").read_text())
+        self.assertIn("BotGearService::Instance().GearMode(", talents)
+        self.assertIn("DecideGearRefit(", talents)
+        # An already-recorded tier refits with the master switch off.
+        self.assertIn("RecordedHireGearTierUsable(", talents)
+        # A capped refit backfills skipped kit slots and ends under the cap.
+        self.assertIn("AutogearOwned(ITEM_QUALITY_EPIC", talents)
+        self.assertIn("UnequipAboveCapWorn(", talents)
 
     def test_pin_holds_the_cap_in_the_equip_path(self):
         equip = (ROOT / "ai/playerbot/strategy/actions/EquipAction.cpp").read_text()
@@ -104,6 +152,9 @@ class BotGearWiringTest(unittest.TestCase):
         self.assertIn("BotGearService::Instance().UnpinBot(", hire)
         cleanup = (ROOT / "runtime/CharacterCleanup.cpp").read_text()
         self.assertIn("BotGearService::Instance().UnpinBot(", cleanup)
+        # Synchronous there: startup recovery reads the table back before the
+        # async queue drains, and a recycled guid must not lose a new pin.
+        self.assertIn("UnpinBot(guidLow, true)", cleanup)
 
     def test_config_default_matches_header(self):
         self.assertIn('AiPlayerbot.BotGearPresets', CONFIG)

@@ -1081,7 +1081,16 @@ public:
         // strategy in AiFactory, and survives ResetStrategies() - which is the
         // whole point, since that runs whenever the master changes, i.e. right
         // when the bot joins the player's group.
-        void SetForcedRole(uint8 role) { m_forcedRole = role; }
+        void SetForcedRole(uint8 role)
+        {
+            if (m_forcedRole == role)
+                return;
+            m_forcedRole = role;
+            // Gear scores against the new role's weights, so the usages cached
+            // for the bags and the loot before the change must not stand.
+            if (aiObjectContext)
+                aiObjectContext->ClearValues("item usage");
+        }
         uint8 GetForcedRole() const { return m_forcedRole; }
         // PET-3: set when the player orders `pet autocast` on a pet taunt
         // (Growl/Torment); the autocast sweep then leaves taunts to them.

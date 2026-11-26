@@ -120,7 +120,7 @@ bool VendorHasUsefulItemValue::Calculate()
                 continue;
             // A shield spec never buys an off-hand weapon (same veto as the
             // BuyAction pass: it would only ping-pong the shield).
-            uint32 vendorSpecId = sRandomItemMgr.GetPlayerSpecId(bot);
+            uint32 vendorSpecId = sRandomItemMgr.GetPlayerSpecId(bot, ai);
             if (!vendorSpecId)
                 vendorSpecId = sRandomItemMgr.GetFallbackSpecId(bot->GetClass());
             if (proto->Class == ITEM_CLASS_WEAPON &&
